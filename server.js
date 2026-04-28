@@ -6,6 +6,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import connectDB from './config/db.js';
 import validateEnv from './config/validateEnv.js';
+import sessionRoutes from './routes/session.route.js';
+import bookingRoutes from './routes/booking.route.js';
 import { createRateLimiter } from './services/redis.js';
 
 const app = express();
@@ -48,8 +50,9 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
 
-// API endpoints goes here
-// app.use('/api/...', routes);
+// <--------------------- API endpoints goes here -------------------------->
+app.use('/api/session', sessionRoutes);
+app.use('/api/booking', bookingRoutes);
 
 // 404 handler
 app.use((req, res) => {

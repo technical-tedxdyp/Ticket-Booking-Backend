@@ -53,7 +53,7 @@ const bookingSchema = new mongoose.Schema({
     checkedInAt: { type: Date },
     expiresAt: {
         type: Date,
-        default: () => new Date(Date.now() + 15 * 60 * 1000),
+        default: () => new Date(Date.now() + 15 * 60 * 1000), // 15 min
         index: { expireAfterSeconds: 0 },
     },
 }, { timestamps: true });
