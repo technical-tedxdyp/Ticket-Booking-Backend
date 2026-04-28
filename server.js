@@ -9,6 +9,7 @@ import validateEnv from './config/validateEnv.js';
 import sessionRoutes from './routes/session.route.js';
 import bookingRoutes from './routes/booking.route.js';
 import { createRateLimiter } from './services/redis.js';
+import errorHandler from './middlewares/error.middleware.js';
 
 const app = express();
 
@@ -50,43 +51,18 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
 
-// <--------------------- API endpoints goes here -------------------------->
+// API endpoints goes here
 app.use('/api/session', sessionRoutes);
 app.use('/api/booking', bookingRoutes);
+
+// Error handler middleware
+app.use(errorHandler);
 
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({
         success: false,
         message: 'Route not found'
-    });
-});
-
-// Global error handler
-app.use((err, req, res, next) => {
-    console.error(err);
-
-    // Mongoose validation error
-    if (err.name === 'ValidationError') {
-        const messages = Object.values(err.errors).map(e => e.message);
-
-        return res.status(400).json({
-            success: false,
-            message: messages.join(', ')
-        });
-    }
-
-    // Duplicate key error
-    if (err.code === 11000) {
-        return res.status(400).json({
-            success: false,
-            message: 'Duplicate field value entered'
-        });
-    }
-
-    res.status(err.status || 500).json({
-        success: false,
-        message: err.message || 'Internal Server Error'
     });
 });
 
