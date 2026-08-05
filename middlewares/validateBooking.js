@@ -2,7 +2,7 @@ import { StatusCodes } from 'http-status-codes';
 import { errorResponse } from '../utils/response.js';
 
 const validateBooking = (req, res, next) => {
-    const { name, email, phone, sessions, ticketCount } = req.body;
+    const { name, email, phone, selectedSessions, ticketCount } = req.body;
 
     if (!name || name.trim().length < 2) {
         return errorResponse(res, StatusCodes.BAD_REQUEST, 'Name must be at least 2 characters');
@@ -18,7 +18,7 @@ const validateBooking = (req, res, next) => {
         return errorResponse(res, StatusCodes.BAD_REQUEST, 'Valid 10-digit Indian mobile number required');
     }
 
-    if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+    if (!selectedSessions || !Array.isArray(selectedSessions) || selectedSessions.length === 0) {
         return errorResponse(res, StatusCodes.BAD_REQUEST, 'Select at least one session');
     }
 
