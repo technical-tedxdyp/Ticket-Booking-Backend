@@ -1,14 +1,30 @@
+import { z } from 'zod';
 import Event from '../models/event.model.js';
 import Session from '../models/session.model.js';
 import Booking from '../models/booking.model.js';
+import { StatusCodes } from 'http-status-codes';
 import { createOrder } from '../services/razorpay.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { successResponse, errorResponse } from '../utils/response.js';
+
+const createBookingSchema = z.object({
+    name: z.string().min(1, 'Name is required'),
+    email: z.string().email('Invalid email format'),
+    phone: z.string().min(10, 'Phone number must be at least 10 digits'),
+    sessions: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid session ID format')).min(1, 'At least one session is required'),
+    ticketCount: z.union([z.string(), z.number()]).transform(v => parseInt(v)).pipe(z.number().min(1).max(5)),
+});
 
 // Create a new booking
 // Flow: Input arrives -> ticket limit check -> sessions exist? -> seats available? -> calc amount -> create order
 export const createBookingOrder = asyncHandler(async (req, res) => {
-    const { name, email, phone, sessions, ticketCount } = req.body;
-    const count = parseInt(ticketCount);
+    const parseResult = createBookingSchema.safeParse(req.body);
+    if (!parseResult.success) {
+        return errorResponse(res, StatusCodes.BAD_REQUEST, 'Validation failed', parseResult.error.errors);
+    }
+
+    const { name, email, phone, sessions, ticketCount } = parseResult.data;
+    const count = ticketCount;
     const normalEmail = email.toLowerCase().trim();
 
     // --- Step 1: Ticket limit check ---
@@ -18,10 +34,7 @@ export const createBookingOrder = asyncHandler(async (req, res) => {
     });
     const usedTickets = existing.reduce((sum, b) => sum + b.ticketCount, 0);
     if (usedTickets + count > 5) {
-        return res.status(400).json({
-            success: false,
-            message: `You already have ${usedTickets} ticket(s). Max is 5 per person.`,
-        });
+        return errorResponse(res, StatusCodes.BAD_REQUEST, `You already have ${usedTickets} ticket(s). Max is 5 per person.`);
     }
 
     // --- Step 2: Validate sessions exists and are active ---
@@ -30,10 +43,7 @@ export const createBookingOrder = asyncHandler(async (req, res) => {
         isActive: true,
     });
     if (sessionDocs.length !== sessions.length) {
-        return res.status(400).json({
-            success: false,
-            message: 'One or more selected sessions are invalid or unavailable',
-        });
+        return errorResponse(res, StatusCodes.BAD_REQUEST, 'One or more selected sessions are invalid or unavailable');
     }
 
     // --- Step 3: Atomic seat reservation ---
@@ -43,10 +53,7 @@ export const createBookingOrder = asyncHandler(async (req, res) => {
         { new: true },
     );
     if (!event) {
-        return res.status(400).json({
-            success: false,
-            message: 'Not enough seats available. Try a smaller ticket count.',
-        });
+        return errorResponse(res, StatusCodes.BAD_REQUEST, 'Not enough seats available. Try a smaller ticket count.');
     }
 
     // --- Step 4: Compute total amount server side ---
@@ -74,14 +81,11 @@ export const createBookingOrder = asyncHandler(async (req, res) => {
         razorpayOrderId: razorpayOrder.id,
     });
 
-    res.status(201).json({
-        success: true,
-        data: {
-            bookingId: booking._id,
-            razorpayOrderId: razorpayOrder.id,
-            amount: totalAmount,
-            currency: 'INR',
-            keyId: process.env.RAZORPAY_KEY_ID,
-        },
+    return successResponse(res, StatusCodes.CREATED, 'Booking created successfully', {
+        bookingId: booking._id,
+        razorpayOrderId: razorpayOrder.id,
+        amount: totalAmount,
+        currency: 'INR',
+        keyId: process.env.RAZORPAY_KEY_ID,
     });
 });

@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import express from 'express';
 import mongoose from 'mongoose';
 import connectDB from './config/db.js';
+import { StatusCodes } from 'http-status-codes';
 import validateEnv from './config/validateEnv.js';
 import sessionRoutes from './routes/session.route.js';
 import bookingRoutes from './routes/booking.route.js';
@@ -34,10 +35,7 @@ app.use(async (req, res, next) => {
         const ip = (req.headers['x-forwarded-for'] || req.ip || "").split(',')[0].trim();
         const { success } = await rateLimit.limit(ip);
         if (!success) {
-            return res.status(429).json({
-                success: false,
-                message: 'Too many requests'
-            });
+            return errorResponse(res, StatusCodes.TOO_MANY_REQUESTS, 'Too many requests');
         }
         next();
     } catch (err) {
@@ -48,7 +46,7 @@ app.use(async (req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok' });
+    return successResponse(res, StatusCodes.OK, 'Server is healthy', { status: 'ok' });
 });
 
 // API endpoints goes here
@@ -60,10 +58,7 @@ app.use(errorHandler);
 
 // 404 handler
 app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        message: 'Route not found'
-    });
+    return errorResponse(res, StatusCodes.NOT_FOUND, 'Route not found');
 });
 
 // Start server

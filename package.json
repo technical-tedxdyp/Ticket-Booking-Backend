@@ -28,9 +28,10 @@
     "qrcode": "^1.5.4",
     "razorpay": "^2.9.6",
     "twilio": "^6.0.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "http-status-codes": "^2.3.0",
     "nodemon": "^3.1.14",
     "prettier": "^3.8.3"
   }
