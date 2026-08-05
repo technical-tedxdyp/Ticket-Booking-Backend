@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { BOOKING_STATUS, MAX_TICKETS_PER_USER, RESERVATION_TIME } from '../utils/constants.js';
 
 const bookingSchema = new mongoose.Schema(
     {
@@ -30,7 +31,7 @@ const bookingSchema = new mongoose.Schema(
             type: Number,
             required: true,
             min: 1,
-            max: 5,
+            max: MAX_TICKETS_PER_USER,
         },
         totalAmount: {
             type: Number,
@@ -39,8 +40,8 @@ const bookingSchema = new mongoose.Schema(
 
         bookingStatus: {
             type: String,
-            enum: ['PENDING', 'PAYMENT_SUCCESS', 'PAYMENT_FAILED', 'EXPIRED', 'TICKET_GENERATED', 'CHECKED_IN'],
-            default: 'PENDING',
+            enum: Object.values(BOOKING_STATUS),
+            default: BOOKING_STATUS.PENDING,
         },
 
         razorpayOrderId: String,
@@ -57,7 +58,7 @@ const bookingSchema = new mongoose.Schema(
 
         reservationExpiresAt: {
             type: Date,
-            default: () => new Date(Date.now() + 10 * 60 * 1000),
+            default: () => new Date(Date.now() + RESERVATION_TIME),
         },
 
         paymentVerifiedAt: Date,
@@ -80,7 +81,7 @@ bookingSchema.index(
     {
         expireAfterSeconds: 0,
         partialFilterExpression: {
-            bookingStatus: 'PENDING',
+            bookingStatus: BOOKING_STATUS.PENDING,
         },
     },
 );

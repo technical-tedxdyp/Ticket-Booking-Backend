@@ -6,6 +6,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import connectDB from './config/db.js';
 import { StatusCodes } from 'http-status-codes';
+import ApiResponse from './utils/ApiResponse.js';
 import validateEnv from './config/validateEnv.js';
 import sessionRoutes from './routes/session.route.js';
 import bookingRoutes from './routes/booking.route.js';
@@ -35,7 +36,7 @@ app.use(async (req, res, next) => {
         const ip = (req.headers['x-forwarded-for'] || req.ip || "").split(',')[0].trim();
         const { success } = await rateLimit.limit(ip);
         if (!success) {
-            return errorResponse(res, StatusCodes.TOO_MANY_REQUESTS, 'Too many requests');
+            return res.status(StatusCodes.TOO_MANY_REQUESTS).json(new ApiResponse(StatusCodes.TOO_MANY_REQUESTS, 'Too many requests'));
         }
         next();
     } catch (err) {
@@ -46,7 +47,7 @@ app.use(async (req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-    return successResponse(res, StatusCodes.OK, 'Server is healthy', { status: 'ok' });
+    return res.status(StatusCodes.OK).json(new ApiResponse(StatusCodes.OK, 'Server is healthy', { status: 'ok' }));
 });
 
 // API endpoints goes here
@@ -58,7 +59,7 @@ app.use(errorHandler);
 
 // 404 handler
 app.use((req, res) => {
-    return errorResponse(res, StatusCodes.NOT_FOUND, 'Route not found');
+    return res.status(StatusCodes.NOT_FOUND).json(new ApiResponse(StatusCodes.NOT_FOUND, 'Route not found'));
 });
 
 // Start server

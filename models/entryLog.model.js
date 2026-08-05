@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { ENTRY_ACTION } from '../utils/constants.js';
 
 const entryLogSchema = new mongoose.Schema(
     {
@@ -21,7 +22,7 @@ const entryLogSchema = new mongoose.Schema(
 
         action: {
             type: String,
-            enum: ['ENTRY', 'RE_ENTRY'],
+            enum: Object.values(ENTRY_ACTION),
             required: true,
         },
 

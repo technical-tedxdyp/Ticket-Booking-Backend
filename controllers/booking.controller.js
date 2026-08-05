@@ -1,6 +1,6 @@
 import { StatusCodes } from 'http-status-codes';
+import ApiResponse from '../utils/ApiResponse.js';
 import { createOrder } from '../providers/razorpay.js';
-import { successResponse } from '../utils/response.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createPendingBooking } from '../services/booking.service.js';
 
@@ -21,11 +21,13 @@ export const createBookingOrder = asyncHandler(async (req, res) => {
     booking.razorpayOrderId = razorpayOrder.id;
     await booking.save();
 
-    return successResponse(res, StatusCodes.CREATED, 'Booking created successfully', {
-        bookingId: booking._id,
-        orderId: razorpayOrder.id,
-        amount: totalAmount,
-        currency: 'INR',
-        key: process.env.RAZORPAY_KEY_ID,
-    });
+    return res.status(StatusCodes.CREATED).json(
+        new ApiResponse(StatusCodes.CREATED, 'Booking created successfully', {
+            bookingId: booking._id,
+            orderId: razorpayOrder.id,
+            amount: totalAmount,
+            currency: 'INR',
+            key: process.env.RAZORPAY_KEY_ID,
+        })
+    );
 });

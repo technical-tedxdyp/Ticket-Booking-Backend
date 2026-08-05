@@ -1,7 +1,7 @@
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
 import { StatusCodes } from 'http-status-codes';
-import { errorResponse } from '../utils/response.js';
+import ApiResponse from '../utils/ApiResponse.js';
 
 export const ratelimit = new Ratelimit({
     redis: Redis.fromEnv(),
@@ -19,7 +19,7 @@ export const rateLimitMiddleware = async (req, res, next) => {
 
         if (!success) {
             const retryAfter = Math.ceil((reset - Date.now()) / 1000);
-            return errorResponse(res, StatusCodes.TOO_MANY_REQUESTS, `Too many requests. Try again in ${retryAfter} seconds.`);
+            return res.status(StatusCodes.TOO_MANY_REQUESTS).json(new ApiResponse(StatusCodes.TOO_MANY_REQUESTS, `Too many requests. Try again in ${retryAfter} seconds.`));
         }
         next();
     } catch (err) {

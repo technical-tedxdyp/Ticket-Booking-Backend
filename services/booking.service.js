@@ -1,5 +1,8 @@
+import ApiError from '../utils/ApiError.js';
+import { StatusCodes } from 'http-status-codes';
 import Booking from '../models/booking.model.js';
 import Session from '../models/session.model.js';
+import { BOOKING_STATUS, MAX_TICKETS_PER_USER } from '../utils/constants.js';
 
 export const createPendingBooking = async ({ name, email, phone, selectedSessions, ticketCount }) => {
     // normalize email
@@ -12,21 +15,21 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
     });
 
     if (sessions.length !== selectedSessions.length) {
-        throw new Error('One or more sessions are invalid.');
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'One or more sessions are invalid.');
     }
 
     // Ticket Limit
     const existingBookings = await Booking.find({
         $or: [{ email }, { phone }],
         bookingStatus: {
-            $in: ['PAYMENT_SUCCESS', 'TICKET_GENERATED', 'CHECKED_IN'],
+            $in: [BOOKING_STATUS.PAYMENT_SUCCESS, BOOKING_STATUS.TICKET_GENERATED, BOOKING_STATUS.CHECKED_IN],
         },
     });
 
     const alreadyBooked = existingBookings.reduce((sum, booking) => sum + booking.ticketCount, 0);
 
-    if (alreadyBooked + ticketCount > 5) {
-        throw new Error(`Maximum ticket limit exceeded. Already booked ${alreadyBooked}.`);
+    if (alreadyBooked + ticketCount > MAX_TICKETS_PER_USER) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, `Maximum ticket limit exceeded. Already booked ${alreadyBooked}.`);
     }
 
     // Seat Availability
@@ -34,7 +37,7 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
         const available = session.totalSeats - session.reservedSeats - session.soldSeats;
 
         if (available < ticketCount) {
-            throw new Error(`${session.title} has only ${available} seats left.`);
+            throw new ApiError(StatusCodes.BAD_REQUEST, `${session.title} has only ${available} seats left.`);
         }
     }
 
@@ -58,7 +61,7 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
         selectedSessions,
         ticketCount,
         totalAmount,
-        bookingStatus: 'PENDING',
+        bookingStatus: BOOKING_STATUS.PENDING,
     });
 
     return {
