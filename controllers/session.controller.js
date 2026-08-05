@@ -14,3 +14,23 @@ export const getSessions = asyncHandler(async (req, res) => {
 
     return res.status(StatusCodes.OK).json(new ApiResponse(StatusCodes.OK, 'Sessions fetched successfully', sessions));
 });
+
+// Get session by ID
+export const getSessionById = asyncHandler(async (req, res) => {
+    // TODO
+});
+
+// Create a new session
+export const createSession = asyncHandler(async (req, res) => {
+    // TODO
+});
+
+// Update a session
+export const updateSession = asyncHandler(async (req, res) => {
+    // TODO
+});
+
+// Delete a session
+export const deleteSession = asyncHandler(async (req, res) => {
+    // TODO
+});

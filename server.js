@@ -10,7 +10,7 @@ import ApiResponse from './utils/ApiResponse.js';
 import validateEnv from './config/validateEnv.js';
 import sessionRoutes from './routes/session.route.js';
 import bookingRoutes from './routes/booking.route.js';
-import { createRateLimiter } from './services/redis.js';
+import { createRateLimiter } from './providers/redis.js';
 import errorHandler from './middlewares/error.middleware.js';
 
 const app = express();
