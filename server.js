@@ -10,6 +10,7 @@ import ApiResponse from './utils/ApiResponse.js';
 import validateEnv from './config/validateEnv.js';
 import sessionRoutes from './routes/session.route.js';
 import bookingRoutes from './routes/booking.route.js';
+import adminRoutes from './routes/admin.route.js';
 import { createRateLimiter } from './providers/redis.js';
 import errorHandler from './middlewares/error.middleware.js';
 
@@ -53,6 +54,7 @@ app.get('/health', (req, res) => {
 // API endpoints goes here
 app.use('/api/session', sessionRoutes);
 app.use('/api/booking', bookingRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handler middleware
 app.use(errorHandler);

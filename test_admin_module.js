@@ -1,0 +1,15 @@
+import 'dotenv/config';
+import { login, getDashboard, getBookings, getBookingById, verifyTicket, checkInTicket, getEntryLogs } from './controllers/admin.controller.js';
+import adminAuth from './middlewares/adminAuth.js';
+import validateAdmin from './validations/admin.validation.js';
+console.log('Testing Admin Module Functions:');
+console.log('- login:', typeof login === 'function');
+console.log('- getDashboard:', typeof getDashboard === 'function');
+console.log('- getBookings:', typeof getBookings === 'function');
+console.log('- getBookingById:', typeof getBookingById === 'function');
+console.log('- verifyTicket:', typeof verifyTicket === 'function');
+console.log('- checkInTicket:', typeof checkInTicket === 'function');
+console.log('- getEntryLogs:', typeof getEntryLogs === 'function');
+console.log('- adminAuth:', typeof adminAuth === 'function');
+console.log('- validateAdmin:', typeof validateAdmin === 'function');
+console.log('✅ Admin Module modules import and compile successfully!');

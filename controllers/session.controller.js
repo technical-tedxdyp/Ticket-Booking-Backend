@@ -8,7 +8,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 export const getSessions = asyncHandler(async (req, res) => {
     const sessions = await Session.find({ isActive: true });
 
-    if(!sessions || sessions.length == 0) {
+    if (!sessions || sessions.length == 0) {
         throw new ApiError(StatusCodes.NOT_FOUND, 'No active sessions found');
     }
 
