@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import { generateTicketId } from '../utils/generateTicketId.js';
 import { generateQRCode } from './qr.service.js';
 import { generateTicketPDF } from './pdf.service.js';
+import Booking from '../models/booking.model.js';
 
 const buildTicketData = (booking, ticketId) => {
     const sessions = [];
@@ -87,5 +88,43 @@ export const generateTicket = async (booking) => {
 };
 
 export const getTicketById = async (ticketId) => {
-    
+    if (!ticketId || typeof ticketId !== 'string' || ticketId.trim() === '') {
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'A valid ticketId is required.');
+    }
+
+    const sanitizedTicketId = ticketId.trim();
+
+    const booking = await Booking.findOne({ ticketId: sanitizedTicketId })
+        .populate({
+            path: 'selectedSessions',
+            select: 'title speakers day startTime endTime price event',
+            populate: {
+                path: 'event',
+                select: 'title startDate endDate',
+            },
+        })
+        .lean();
+
+    if (!booking) {
+        throw new ApiError(StatusCodes.NOT_FOUND, 'Ticket not found.');
+    }
+
+    if (!booking.qrCode || !booking.pdfUrl) {
+        throw new ApiError(StatusCodes.NOT_FOUND, 'Ticket has not been generated yet.');
+    }
+
+    return {
+        ticketId: booking.ticketId,
+        name: booking.name,
+        email: booking.email,
+        phone: booking.phone,
+        ticketCount: booking.ticketCount,
+        totalAmount: booking.totalAmount,
+        bookingStatus: booking.bookingStatus,
+        qrCode: booking.qrCode,
+        pdfUrl: booking.pdfUrl,
+        ticketGeneratedAt: booking.ticketGeneratedAt,
+        checkedInAt: booking.checkedInAt,
+        selectedSessions: booking.selectedSessions,
+    };
 };
