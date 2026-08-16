@@ -64,11 +64,16 @@ app.use((req, res) => {
     return res.status(StatusCodes.NOT_FOUND).json(new ApiResponse(StatusCodes.NOT_FOUND, 'Route not found'));
 });
 
+import { startExpiryWorker } from './services/booking.service.js';
+
 // Start server
 const startServer = async () => {
     try {
         validateEnv();
         await connectDB();
+
+        // Start background reservation expiry processor
+        const stopExpiryWorker = startExpiryWorker(30000);
 
         const PORT = process.env.PORT || 8080;
         const server = app.listen(PORT, () => {
@@ -77,6 +82,7 @@ const startServer = async () => {
 
         const shutdown = async () => {
             console.log('Shutting down server...');
+            stopExpiryWorker();
             await mongoose.connection.close();
             server.close(() => {
                 process.exit(0);
