@@ -4,39 +4,23 @@ import { generateTicketId } from '../utils/generateTicketId.js';
 import { generateQRCode } from './qr.service.js';
 import { generateTicketPDF } from './pdf.service.js';
 import Booking from '../models/booking.model.js';
+import { getSessionsByIds } from '../config/sessions.js';
 
 const buildTicketData = (booking, ticketId) => {
     const sessions = [];
 
     if (Array.isArray(booking.selectedSessions)) {
-        for (const s of booking.selectedSessions) {
-            if (s && typeof s === 'object' && s.title) {
-                sessions.push({
-                    title: s.title,
-                    speakers: s.speakers || [],
-                    day: s.day ?? null,
-                    startTime: s.startTime ?? null,
-                    endTime: s.endTime ?? null,
-                });
-            }
+        const staticSessions = getSessionsByIds(booking.selectedSessions);
+        for (const s of staticSessions) {
+            sessions.push({
+                title: s.title,
+                speakers: s.speakers || [],
+                day: s.day ?? 1,
+                timeLabel: s.timeLabel,
+                startTime: s.startTime ?? null,
+                endTime: s.endTime ?? null,
+            });
         }
-    }
-
-    let eventTitle = null;
-    let eventStart = null;
-    let eventEnd = null;
-
-    if (sessions.length === 0 && booking.selectedSessions?.[0]) {
-        const firstSession = booking.selectedSessions[0];
-        if (firstSession?.event && typeof firstSession.event === 'object') {
-            eventTitle = firstSession.event.title ?? null;
-            eventStart = firstSession.event.startDate ?? null;
-            eventEnd = firstSession.event.endDate ?? null;
-        }
-    } else if (booking.selectedSessions?.[0]?.event && typeof booking.selectedSessions[0].event === 'object') {
-        eventTitle = booking.selectedSessions[0].event.title ?? null;
-        eventStart = booking.selectedSessions[0].event.startDate ?? null;
-        eventEnd = booking.selectedSessions[0].event.endDate ?? null;
     }
 
     return {
@@ -45,9 +29,7 @@ const buildTicketData = (booking, ticketId) => {
         email: booking.email ?? null,
         ticketCount: booking.ticketCount ?? null,
         totalAmount: booking.totalAmount ?? null,
-        eventTitle,
-        eventStart,
-        eventEnd,
+        eventTitle: 'TEDx DYP Akurdi 2026',
         sessions,
     };
 };
@@ -94,16 +76,7 @@ export const getTicketById = async (ticketId) => {
 
     const sanitizedTicketId = ticketId.trim();
 
-    const booking = await Booking.findOne({ ticketId: sanitizedTicketId })
-        .populate({
-            path: 'selectedSessions',
-            select: 'title speakers day startTime endTime price event',
-            populate: {
-                path: 'event',
-                select: 'title startDate endDate',
-            },
-        })
-        .lean();
+    const booking = await Booking.findOne({ ticketId: sanitizedTicketId }).lean();
 
     if (!booking) {
         throw new ApiError(StatusCodes.NOT_FOUND, 'Ticket not found.');
@@ -112,6 +85,8 @@ export const getTicketById = async (ticketId) => {
     if (!booking.qrCode || !booking.pdfUrl) {
         throw new ApiError(StatusCodes.NOT_FOUND, 'Ticket has not been generated yet.');
     }
+
+    const sessions = getSessionsByIds(booking.selectedSessions);
 
     return {
         ticketId: booking.ticketId,
@@ -125,6 +100,6 @@ export const getTicketById = async (ticketId) => {
         pdfUrl: booking.pdfUrl,
         ticketGeneratedAt: booking.ticketGeneratedAt,
         checkedInAt: booking.checkedInAt,
-        selectedSessions: booking.selectedSessions,
+        selectedSessions: sessions,
     };
 };

@@ -10,7 +10,7 @@ cloudinary.config({
 });
 
 export const uploadTicketPDF = async (pdfBuffer, ticketId) => {
-    // ── Input validation ──────────────────────────────────────────────────
+    // Input validation
     if (!Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
         throw new ApiError(
             StatusCodes.BAD_REQUEST,
