@@ -15,8 +15,7 @@ const entryLogSchema = new mongoose.Schema(
         },
 
         session: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Session',
+            type: String,
             required: true,
         },
 

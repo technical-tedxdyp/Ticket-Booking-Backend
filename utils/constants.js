@@ -13,5 +13,6 @@ export const ENTRY_ACTION = {
 };
 
 export const MAX_TICKETS_PER_USER = 5;
+export const TOTAL_EVENT_CAPACITY = 350;
 
 export const RESERVATION_TIME = 10 * 60 * 1000; // 10 minutes
