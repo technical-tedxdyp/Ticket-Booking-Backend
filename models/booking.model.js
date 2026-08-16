@@ -21,9 +21,9 @@ const bookingSchema = new mongoose.Schema(
 
         selectedSessions: [
             {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Session',
+                type: String,
                 required: true,
+                trim: true,
             },
         ],
 
