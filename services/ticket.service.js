@@ -4,6 +4,7 @@ import { generateTicketId } from '../utils/generateTicketId.js';
 import { generateQRCode } from './qr.service.js';
 import { generateTicketPDF } from './pdf.service.js';
 import Booking from '../models/booking.model.js';
+import qrCode from 'razorpay/dist/types/qrCode.js';
 
 const buildTicketData = (booking, ticketId) => {
     const sessions = [];
@@ -121,6 +122,7 @@ export const getTicketById = async (ticketId) => {
         ticketCount: booking.ticketCount,
         totalAmount: booking.totalAmount,
         bookingStatus: booking.bookingStatus,
+        qrCode: booking.qrCode,
         pdfUrl: booking.pdfUrl,
         ticketGeneratedAt: booking.ticketGeneratedAt,
         checkedInAt: booking.checkedInAt,
