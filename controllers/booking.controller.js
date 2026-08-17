@@ -2,7 +2,7 @@ import { StatusCodes } from 'http-status-codes';
 import ApiResponse from '../utils/ApiResponse.js';
 import { createOrder } from '../providers/razorpay.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { createPendingBooking } from '../services/booking.service.js';
+import { createPendingBooking, getBookingById } from '../services/booking.service.js';
 
 export const createBookingOrder = asyncHandler(async (req, res) => {
     const { name, email, phone, selectedSessions, ticketCount } = req.body;
@@ -29,5 +29,15 @@ export const createBookingOrder = asyncHandler(async (req, res) => {
             currency: 'INR',
             key: process.env.RAZORPAY_KEY_ID,
         })
+    );
+});
+
+export const getBookingDetails = asyncHandler(async (req, res) => {
+    const { bookingId } = req.params;
+
+    const booking = await getBookingById(bookingId);
+
+    return res.status(StatusCodes.OK).json(
+        new ApiResponse(StatusCodes.OK, 'Booking details fetched successfully', booking)
     );
 });
