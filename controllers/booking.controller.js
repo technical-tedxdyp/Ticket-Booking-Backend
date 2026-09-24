@@ -1,10 +1,21 @@
 import { StatusCodes } from 'http-status-codes';
 import ApiResponse from '../utils/ApiResponse.js';
-import { createOrder } from '../providers/razorpay.js';
+import { createOrder, isRazorpayEnabled } from '../providers/razorpay.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { createPendingBooking, getBookingById } from '../services/booking.service.js';
 
 export const createBookingOrder = asyncHandler(async (req, res) => {
+    if (!isRazorpayEnabled()) {
+        return res
+            .status(StatusCodes.SERVICE_UNAVAILABLE)
+            .json(
+                new ApiResponse(
+                    StatusCodes.SERVICE_UNAVAILABLE,
+                    'Razorpay payments are temporarily disabled. Set IS_RAZOR_PAY_ENABLE=true and add valid keys to enable them again.',
+                ),
+            );
+    }
+
     const { name, email, phone, selectedSessions, ticketCount } = req.body;
 
     // Create Pending Booking
@@ -28,7 +39,7 @@ export const createBookingOrder = asyncHandler(async (req, res) => {
             amount: totalAmount,
             currency: 'INR',
             key: process.env.RAZORPAY_KEY_ID,
-        })
+        }),
     );
 });
 
@@ -37,7 +48,5 @@ export const getBookingDetails = asyncHandler(async (req, res) => {
 
     const booking = await getBookingById(bookingId);
 
-    return res.status(StatusCodes.OK).json(
-        new ApiResponse(StatusCodes.OK, 'Booking details fetched successfully', booking)
-    );
+    return res.status(StatusCodes.OK).json(new ApiResponse(StatusCodes.OK, 'Booking details fetched successfully', booking));
 });
