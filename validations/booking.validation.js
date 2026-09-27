@@ -8,25 +8,36 @@ import { VALID_SESSION_IDS } from '../config/sessions.js';
 const bookingSchema = z.object({
     name: z.string().trim().min(2, 'Name must be at least 2 characters.'),
     email: z.string().trim().toLowerCase().email('Valid email address is required.'),
-    phone: z.string().trim().regex(/^[6-9]\d{9}$/, 'Valid 10-digit Indian mobile number required.'),
+    phone: z
+        .string()
+        .trim()
+        .regex(/^[6-9]\d{9}$/, 'Valid 10-digit Indian mobile number required.'),
     selectedSessions: z
         .array(z.string().trim())
         .min(1, 'Select at least one session.')
         .refine(
             (sessions) =>
-                sessions.every(
-                    (s) =>
-                        VALID_SESSION_IDS.includes(s.toLowerCase()) ||
-                        /^[0-9a-fA-F]{24}$/.test(s)
-                ),
-            { message: `Invalid session selected. Valid sessions are: ${VALID_SESSION_IDS.join(', ')}` }
+                Array.isArray(sessions) &&
+                sessions.every((s) => VALID_SESSION_IDS.includes(String(s).toLowerCase()) || /^[0-9a-fA-F]{24}$/.test(String(s))),
+            { message: `Invalid session selected. Valid sessions are: ${VALID_SESSION_IDS.join(', ')}` },
         )
         .refine(
-            (sessions) => new Set(sessions.map((s) => s.toLowerCase())).size === sessions.length,
-            { message: 'Duplicate sessions are not allowed.' }
+            (sessions) => {
+                if (!Array.isArray(sessions)) return false;
+                return new Set(sessions.map((s) => String(s).toLowerCase())).size === sessions.length;
+            },
+            { message: 'Duplicate sessions are not allowed.' },
         ),
-    ticketCount: z.coerce.number().min(1, `Ticket count must be at least 1.`).max(MAX_TICKETS_PER_USER, `Ticket count must be between 1 and ${MAX_TICKETS_PER_USER}.`),
+    ticketCount: z.coerce
+        .number()
+        .min(1, `Ticket count must be at least 1.`)
+        .max(MAX_TICKETS_PER_USER, `Ticket count must be between 1 and ${MAX_TICKETS_PER_USER}.`),
 });
+
+const getZodMessages = (error) => {
+    const issues = Array.isArray(error?.issues) ? error.issues : Array.isArray(error?.errors) ? error.errors : [];
+    return issues.map((err) => err?.message || 'Validation failed').join(' ');
+};
 
 const validateBooking = (req, res, next) => {
     try {
@@ -35,8 +46,7 @@ const validateBooking = (req, res, next) => {
         next();
     } catch (error) {
         if (error instanceof z.ZodError) {
-            const messages = error.errors.map(err => err.message).join(' ');
-            next(new ApiError(StatusCodes.BAD_REQUEST, messages));
+            next(new ApiError(StatusCodes.BAD_REQUEST, getZodMessages(error)));
         } else {
             next(error);
         }
@@ -53,8 +63,7 @@ export const validateBookingId = (req, res, next) => {
         next();
     } catch (error) {
         if (error instanceof z.ZodError) {
-            const messages = error.errors.map((err) => err.message).join(' ');
-            next(new ApiError(StatusCodes.BAD_REQUEST, messages));
+            next(new ApiError(StatusCodes.BAD_REQUEST, getZodMessages(error)));
         } else {
             next(error);
         }

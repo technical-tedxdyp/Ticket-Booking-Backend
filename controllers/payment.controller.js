@@ -9,10 +9,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { generateTicket } from '../services/ticket.service.js';
 import { sendTicketEmail } from '../services/resend.service.js';
 import { uploadTicketPDF } from '../services/cloudinary.service.js';
-import { 
-  verifyPaymentSignature, 
-  verifyWebhookSignature 
-} from '../providers/razorpay.js';
+import { verifyPaymentSignature, verifyWebhookSignature } from '../providers/razorpay.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -76,10 +73,10 @@ const convertSeats = async (booking, session = null) => {
             {
                 $inc: {
                     reservedSeats: -ticketCount,
-                    soldSeats: ticketCount
-                }
+                    soldSeats: ticketCount,
+                },
             },
-            { ...options, new: true }
+            { ...options, new: true },
         );
 
         if (!result) {
@@ -102,10 +99,10 @@ const releaseSeats = async (booking, session = null) => {
             sessionId,
             {
                 $inc: {
-                    reservedSeats: -ticketCount
-                }
+                    reservedSeats: -ticketCount,
+                },
             },
-            { ...options, new: true }
+            { ...options, new: true },
         );
 
         if (!result) {
@@ -119,7 +116,7 @@ const releaseSeats = async (booking, session = null) => {
 /**
  * Verify Payment API
  * POST /api/payment/verify
- * 
+ *
  * Responsibilities:
  * - Verify payment signature ✅
  * - Update booking status ✅
@@ -132,12 +129,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        const { 
-            bookingId, 
-            razorpayOrderId,
-            razorpayPaymentId, 
-            razorpaySignature 
-        } = req.body;
+        const { bookingId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
         logger.info(`Payment verification started for booking: ${bookingId}`);
 
@@ -150,8 +142,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
         }
 
         // 2. Idempotency check - if already processed
-        if (booking.bookingStatus === BOOKING_STATUS.TICKET_GENERATED || 
-            booking.bookingStatus === BOOKING_STATUS.CHECKED_IN) {
+        if (booking.bookingStatus === BOOKING_STATUS.TICKET_GENERATED || booking.bookingStatus === BOOKING_STATUS.CHECKED_IN) {
             await session.abortTransaction();
             session.endSession();
             return res.status(StatusCodes.OK).json({
@@ -160,8 +151,8 @@ export const verifyPayment = asyncHandler(async (req, res) => {
                 data: {
                     bookingId: booking._id,
                     bookingStatus: booking.bookingStatus,
-                    ticketId: booking.ticketId
-                }
+                    ticketId: booking.ticketId,
+                },
             });
         }
 
@@ -174,8 +165,8 @@ export const verifyPayment = asyncHandler(async (req, res) => {
                 message: `Booking already ${booking.bookingStatus}`,
                 data: {
                     bookingId: booking._id,
-                    bookingStatus: booking.bookingStatus
-                }
+                    bookingStatus: booking.bookingStatus,
+                },
             });
         }
 
@@ -190,7 +181,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
         const isValidSignature = verifyPaymentSignature({
             razorpayOrderId,
             razorpayPaymentId,
-            razorpaySignature
+            razorpaySignature,
         });
 
         if (!isValidSignature) {
@@ -213,28 +204,28 @@ export const verifyPayment = asyncHandler(async (req, res) => {
         const updatedBooking = await Booking.findOneAndUpdate(
             {
                 _id: bookingId,
-                bookingStatus: BOOKING_STATUS.PENDING
+                bookingStatus: BOOKING_STATUS.PENDING,
             },
             {
                 bookingStatus: BOOKING_STATUS.PAYMENT_SUCCESS,
                 razorpayPaymentId: razorpayPaymentId || booking.razorpayPaymentId,
-                paymentVerifiedAt: new Date()
+                paymentVerifiedAt: new Date(),
             },
-            { session, new: true }
+            { session, new: true },
         );
 
         if (!updatedBooking) {
             await session.abortTransaction();
             session.endSession();
-            
+
             const currentBooking = await Booking.findById(bookingId);
             return res.status(StatusCodes.OK).json({
                 success: true,
                 message: `Booking already ${currentBooking.bookingStatus}`,
                 data: {
                     bookingId: currentBooking._id,
-                    bookingStatus: currentBooking.bookingStatus
-                }
+                    bookingStatus: currentBooking.bookingStatus,
+                },
             });
         }
 
@@ -260,30 +251,26 @@ export const verifyPayment = asyncHandler(async (req, res) => {
                 bookingStatus: finalBooking.bookingStatus,
                 ticketId: finalBooking.ticketId,
                 qrCode: finalBooking.qrCode,
-                pdfUrl: finalBooking.pdfUrl
-            }
+                pdfUrl: finalBooking.pdfUrl,
+            },
         });
-
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
-        
+
         logger.error('Payment verification error:', error);
-        
+
         if (error instanceof ApiError) {
             throw error;
         }
-        throw new ApiError(
-            StatusCodes.INTERNAL_SERVER_ERROR, 
-            'Failed to verify payment'
-        );
+        throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to verify payment');
     }
 });
 
 /**
  * Razorpay Webhook Handler
  * POST /api/payment/webhook
- * 
+ *
  * Responsibilities:
  * - Verify webhook signature ✅
  * - Handle payment.captured ✅
@@ -291,32 +278,55 @@ export const verifyPayment = asyncHandler(async (req, res) => {
  * - Update booking status ✅
  * - Convert/release seats ✅
  */
+const parseWebhookBody = (body) => {
+    if (!body) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'Webhook body is required');
+    }
+
+    if (Buffer.isBuffer(body)) {
+        return JSON.parse(body.toString('utf8'));
+    }
+
+    if (typeof body === 'string') {
+        return JSON.parse(body);
+    }
+
+    return body;
+};
+
 export const razorpayWebhook = asyncHandler(async (req, res) => {
     const webhookSignature = req.headers['x-razorpay-signature'];
-    
-    // 1. Verify webhook signature (SECURITY)
+
     if (!webhookSignature) {
         logger.warn('Missing webhook signature');
-        return res.status(StatusCodes.BAD_REQUEST).json({ 
-            success: false, 
-            message: 'Missing webhook signature' 
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            success: false,
+            message: 'Missing webhook signature',
         });
     }
 
-    const isValidSignature = verifyWebhookSignature(
-        JSON.stringify(req.body),
-        webhookSignature
-    );
+    let parsedBody;
+    try {
+        parsedBody = parseWebhookBody(req.body);
+    } catch (error) {
+        logger.warn('Malformed webhook payload', error.message);
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            success: false,
+            message: 'Malformed webhook payload',
+        });
+    }
+
+    const isValidSignature = verifyWebhookSignature(req.body, webhookSignature);
 
     if (!isValidSignature) {
         logger.warn('Invalid webhook signature');
-        return res.status(StatusCodes.BAD_REQUEST).json({ 
-            success: false, 
-            message: 'Invalid webhook signature' 
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            success: false,
+            message: 'Invalid webhook signature',
         });
     }
 
-    const { event, payload } = req.body;
+    const { event, payload } = parsedBody;
     logger.info(`Webhook received: ${event}`);
 
     try {
@@ -335,17 +345,16 @@ export const razorpayWebhook = asyncHandler(async (req, res) => {
         }
 
         // Always return 200 to acknowledge receipt
-        return res.status(StatusCodes.OK).json({ 
-            success: true, 
-            message: 'Webhook processed' 
+        return res.status(StatusCodes.OK).json({
+            success: true,
+            message: 'Webhook processed',
         });
-
     } catch (error) {
         logger.error('Webhook processing error:', error);
         // Still return 200 to prevent retries
-        return res.status(StatusCodes.OK).json({ 
-            success: false, 
-            message: 'Webhook processed with errors' 
+        return res.status(StatusCodes.OK).json({
+            success: false,
+            message: 'Webhook processed with errors',
         });
     }
 });
@@ -364,8 +373,8 @@ const handlePaymentCaptured = async (payload) => {
         logger.info(`Payment captured webhook: ${paymentId} for order ${orderId}`);
 
         // Find booking by order ID
-        const booking = await Booking.findOne({ 
-            razorpayOrderId: orderId 
+        const booking = await Booking.findOne({
+            razorpayOrderId: orderId,
         }).session(session);
 
         if (!booking) {
@@ -376,8 +385,7 @@ const handlePaymentCaptured = async (payload) => {
         }
 
         // If already processed, skip
-        if (booking.bookingStatus === BOOKING_STATUS.TICKET_GENERATED || 
-            booking.bookingStatus === BOOKING_STATUS.CHECKED_IN) {
+        if (booking.bookingStatus === BOOKING_STATUS.TICKET_GENERATED || booking.bookingStatus === BOOKING_STATUS.CHECKED_IN) {
             logger.info(`Booking already processed: ${booking._id}`);
             await session.abortTransaction();
             session.endSession();
@@ -395,14 +403,14 @@ const handlePaymentCaptured = async (payload) => {
         const updatedBooking = await Booking.findOneAndUpdate(
             {
                 _id: booking._id,
-                bookingStatus: BOOKING_STATUS.PENDING
+                bookingStatus: BOOKING_STATUS.PENDING,
             },
             {
                 bookingStatus: BOOKING_STATUS.PAYMENT_SUCCESS,
                 razorpayPaymentId: paymentId,
-                paymentVerifiedAt: new Date()
+                paymentVerifiedAt: new Date(),
             },
-            { session, new: true }
+            { session, new: true },
         );
 
         if (!updatedBooking) {
@@ -422,7 +430,6 @@ const handlePaymentCaptured = async (payload) => {
         session.endSession();
 
         logger.info(`Webhook: Booking confirmed ${booking._id}`);
-
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
@@ -445,8 +452,8 @@ const handlePaymentFailed = async (payload) => {
         logger.warn(`Payment failed webhook: ${paymentId} for order ${orderId}`);
 
         // Find booking by order ID
-        const booking = await Booking.findOne({ 
-            razorpayOrderId: orderId 
+        const booking = await Booking.findOne({
+            razorpayOrderId: orderId,
         }).session(session);
 
         if (!booking) {
@@ -477,7 +484,6 @@ const handlePaymentFailed = async (payload) => {
         session.endSession();
 
         logger.info(`Webhook: Booking marked as failed ${booking._id}`);
-
     } catch (error) {
         await session.abortTransaction();
         session.endSession();

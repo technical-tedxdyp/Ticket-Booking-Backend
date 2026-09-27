@@ -10,63 +10,61 @@ const seed = async () => {
 
         console.log('🌱 Seeding database...');
 
-        // Clear existing data
         await Session.deleteMany({});
         await Event.deleteMany({});
 
-        // Create Event
         const event = await Event.create({
             title: 'TEDx DY Patil 2026',
-            venue: 'DY Patil College of Engineering, Pune',
-            description: 'TEDx event featuring inspiring speakers, innovators, entrepreneurs and creators.',
-            startDate: new Date('2026-10-06'),
-            endDate: new Date('2026-10-06'),
+            startDate: new Date('2026-10-06T10:00:00.000Z'),
+            endDate: new Date('2026-10-06T18:00:00.000Z'),
             isActive: true,
         });
 
-        console.log('✅ Event Created');
-
-        // Create Sessions
         const sessions = [
             {
                 event: event._id,
-                day: 1,
                 title: 'Morning Session',
-                description: 'Opening keynote followed by innovation-focused TEDx talks.',
                 speakers: ['Speaker 1', 'Speaker 2', 'Speaker 3'],
-                startTime: new Date('2026-10-06T10:00:00'),
-                endTime: new Date('2026-10-06T13:00:00'),
+                day: 1,
+                startTime: new Date('2026-10-06T10:00:00.000Z'),
+                endTime: new Date('2026-10-06T13:00:00.000Z'),
+                price: 499,
                 totalSeats: 350,
                 reservedSeats: 0,
                 soldSeats: 0,
-                price: 500,
                 isActive: true,
             },
             {
                 event: event._id,
+                title: 'Evening Session',
+                speakers: ['Speaker 4', 'Speaker 5', 'Speaker 6'],
                 day: 1,
-                title: 'Technology & Startup Session',
-                description: 'Technology, AI and Startup related TEDx talks.',
-                speakers: ['Speaker 3', 'Speaker 4', 'Speaker 5'],
-                startTime: new Date('2026-10-06T14:00:00'),
-                endTime: new Date('2026-10-06T17:00:00'),
+                startTime: new Date('2026-10-06T14:00:00.000Z'),
+                endTime: new Date('2026-10-06T17:00:00.000Z'),
+                price: 599,
                 totalSeats: 350,
                 reservedSeats: 0,
                 soldSeats: 0,
-                price: 600,
                 isActive: true,
             },
         ];
 
-        await Session.insertMany(sessions);
+        const createdSessions = await Session.insertMany(sessions);
 
-        console.log('✅ 2 Sessions Created');
+        console.log('✅ Event created:', event._id.toString());
+        console.log('✅ Sessions created:');
+        createdSessions.forEach((session) => {
+            console.log(`   - ${session.title}: ${session._id.toString()}`);
+        });
 
-        console.log('🎉 Database Seeded Successfully');
+        console.log('\n🎉 Database seeded successfully.');
+        console.log('Use these values in the booking request:');
+        console.log(`selectedSessions: ["${createdSessions[0]._id.toString()}", "${createdSessions[1]._id.toString()}"]`);
+        console.log('Or use static IDs: ["morning", "evening"]');
 
         process.exit(0);
     } catch (error) {
-        console.error(error);
+        console.error('Seed error:', error);
         process.exit(1);
     }
 };

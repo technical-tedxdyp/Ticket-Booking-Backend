@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export const EVENT_DETAILS = {
     eventName: 'TEDxDYPatilUniversity 2026',
@@ -11,16 +11,11 @@ export const EVENT_DETAILS = {
     contactEmail: 'support@tedxdypatil.com',
 };
 
-export const sendTicketEmail = async ({
-    email,
-    name,
-    ticketId,
-    ticketCount,
-    totalAmount,
-    pdfUrl,
-    pdfBuffer,
-    eventDetails = EVENT_DETAILS,
-}) => {
+export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, totalAmount, pdfUrl, pdfBuffer, eventDetails = EVENT_DETAILS }) => {
+    if (!resend) {
+        throw new Error('RESEND_API_KEY is not configured. Email delivery is disabled.');
+    }
+
     const attachments = [];
 
     if (pdfBuffer && Buffer.isBuffer(pdfBuffer)) {
@@ -196,12 +191,16 @@ export const sendTicketEmail = async ({
                     <div class="section-card">
                         <div class="section-title">🎟️ Booking Information</div>
                         <div class="info-grid">
-                            ${ticketId ? `
+                            ${
+                                ticketId
+                                    ? `
                             <div class="info-row">
                                 <div class="info-label">Ticket ID:</div>
                                 <div class="info-value"><span class="badge">${ticketId}</span></div>
                             </div>
-                            ` : ''}
+                            `
+                                    : ''
+                            }
                             <div class="info-row">
                                 <div class="info-label">Attendee Name:</div>
                                 <div class="info-value">${name}</div>
@@ -240,11 +239,15 @@ export const sendTicketEmail = async ({
                         </div>
                     </div>
 
-                    ${pdfUrl ? `
+                    ${
+                        pdfUrl
+                            ? `
                     <div class="btn-container">
                         <a href="${pdfUrl}" class="btn" target="_blank">Download PDF Ticket</a>
                     </div>
-                    ` : ''}
+                    `
+                            : ''
+                    }
 
                     <div class="attachment-note">
                         📎 Your PDF Ticket is also attached to this email. Please bring a digital or printed copy to the entry gate.
@@ -276,4 +279,3 @@ export const sendTicketEmail = async ({
 
     return data;
 };
-

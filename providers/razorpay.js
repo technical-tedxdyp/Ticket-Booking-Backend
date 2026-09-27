@@ -40,27 +40,56 @@ export const createOrder = async (amountInRupees, receipt) => {
     }
 };
 
+const normalizeHexSignature = (signature) =>
+    String(signature || '')
+        .trim()
+        .toLowerCase();
+
 // Verify Razorpay Payment Signature
 export const verifyPaymentSignature = ({ razorpayOrderId, razorpayPaymentId, razorpaySignature }) => {
-    if (!isRazorpayEnabled() || !process.env.RAZORPAY_KEY_SECRET) {
+    if (!isRazorpayEnabled() || !process.env.RAZORPAY_KEY_SECRET || !razorpaySignature) {
         return false;
     }
 
     const body = `${razorpayOrderId}|${razorpayPaymentId}`;
     const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(body).digest('hex');
 
-    return expectedSignature === razorpaySignature;
+    const normalizedExpected = normalizeHexSignature(expectedSignature);
+    const normalizedReceived = normalizeHexSignature(razorpaySignature);
+
+    if (normalizedExpected.length !== normalizedReceived.length) {
+        return false;
+    }
+
+    try {
+        return crypto.timingSafeEqual(Buffer.from(normalizedExpected), Buffer.from(normalizedReceived));
+    } catch (error) {
+        return false;
+    }
 };
 
 // Verify Razorpay Webhook Signature
 export const verifyWebhookSignature = (rawBody, receivedSignature) => {
-    if (!isRazorpayEnabled() || !process.env.RAZORPAY_WEBHOOK_SECRET) {
+    if (!isRazorpayEnabled() || !process.env.RAZORPAY_WEBHOOK_SECRET || !receivedSignature) {
         return false;
     }
 
-    const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET).update(rawBody).digest('hex');
+    const bodyBuffer = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody));
 
-    return expectedSignature === receivedSignature;
+    const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET).update(bodyBuffer).digest('hex');
+
+    const normalizedReceived = normalizeHexSignature(receivedSignature);
+    const normalizedExpected = normalizeHexSignature(expectedSignature);
+
+    if (normalizedExpected.length !== normalizedReceived.length) {
+        return false;
+    }
+
+    try {
+        return crypto.timingSafeEqual(Buffer.from(normalizedExpected), Buffer.from(normalizedReceived));
+    } catch (error) {
+        return false;
+    }
 };
 
 // Fetch Payment Details

@@ -14,9 +14,9 @@ const envSchema = z
         MONGO_PASSWORD: z.string(),
         MONGO_URI: z.string(),
         IS_RAZOR_PAY_ENABLE: z.preprocess((value) => parseBoolean(value), z.boolean()).default(false),
-        RAZORPAY_KEY_ID: z.string().optional(),
-        RAZORPAY_KEY_SECRET: z.string().optional(),
-        RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+        RAZORPAY_KEY_ID: z.string(),
+        RAZORPAY_KEY_SECRET: z.string(),
+        RAZORPAY_WEBHOOK_SECRET: z.string(),
         CLOUDINARY_CLOUD_NAME: z.string(),
         CLOUDINARY_API_KEY: z.string(),
         CLOUDINARY_API_SECRET: z.string(),
@@ -25,8 +25,8 @@ const envSchema = z
         TWILIO_ACCOUNT_SID: z.string().optional(),
         TWILIO_AUTH_TOKEN: z.string().optional(),
         TWILIO_WHATSAPP_FROM: z.string().optional(),
-        UPSTASH_REDIS_REST_URL: z.string(),
-        UPSTASH_REDIS_REST_TOKEN: z.string(),
+        UPSTASH_REDIS_REST_URL: z.string().optional(),
+        UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
         ADMIN_SECRET_KEY: z.string(),
         FRONTEND_URL: z.string().optional(),
     })
@@ -41,6 +41,14 @@ const envSchema = z
                 code: z.ZodIssueCode.custom,
                 path: ['RAZORPAY_KEY_SECRET'],
                 message: 'RAZORPAY_KEY_SECRET is required when IS_RAZOR_PAY_ENABLE is true',
+            });
+        }
+
+        if (env.IS_RAZOR_PAY_ENABLE && !env.RAZORPAY_WEBHOOK_SECRET) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['RAZORPAY_WEBHOOK_SECRET'],
+                message: 'RAZORPAY_WEBHOOK_SECRET is required when IS_RAZOR_PAY_ENABLE is true',
             });
         }
     });

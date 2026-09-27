@@ -10,6 +10,7 @@ import ApiResponse from './utils/ApiResponse.js';
 import validateEnv from './config/validateEnv.js';
 import sessionRoutes from './routes/session.route.js';
 import bookingRoutes from './routes/booking.route.js';
+import paymentRoutes from './routes/payment.route.js';
 import adminRoutes from './routes/admin.route.js';
 import { createRateLimiter } from './providers/redis.js';
 import errorHandler from './middlewares/error.middleware.js';
@@ -34,14 +35,14 @@ app.use(cors({ origin: process.env.FRONTEND_URL || true }));
 const rateLimit = createRateLimiter();
 app.use(async (req, res, next) => {
     try {
-        const ip = (req.headers['x-forwarded-for'] || req.ip || "").split(',')[0].trim();
+        const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
         const { success } = await rateLimit.limit(ip);
         if (!success) {
             return res.status(StatusCodes.TOO_MANY_REQUESTS).json(new ApiResponse(StatusCodes.TOO_MANY_REQUESTS, 'Too many requests'));
         }
         next();
     } catch (err) {
-        console.error("Rate limiter error:", err);
+        console.error('Rate limiter error:', err);
         next();
     }
 });
@@ -54,6 +55,7 @@ app.get('/health', (req, res) => {
 // API endpoints goes here
 app.use('/api/session', sessionRoutes);
 app.use('/api/booking', bookingRoutes);
+app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Error handler middleware
@@ -87,7 +89,7 @@ const startServer = async () => {
             server.close(() => {
                 process.exit(0);
             });
-        }
+        };
 
         process.on('SIGINT', shutdown);
         process.on('SIGTERM', shutdown);
@@ -95,6 +97,6 @@ const startServer = async () => {
         console.error('Startup error: ', error.message);
         process.exit(1);
     }
-}
+};
 
 startServer();
