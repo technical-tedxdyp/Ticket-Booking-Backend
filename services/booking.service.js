@@ -81,11 +81,19 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
     const releaseLock = await acquireEmailLock(normalizedEmail);
 
     try {
+        const cleanedSelectedSessions = Array.isArray(selectedSessions)
+            ? selectedSessions.map((s) => String(s ?? '').trim()).filter((s) => s.length > 0)
+            : [];
+
+        if (cleanedSelectedSessions.length === 0) {
+            throw new ApiError(StatusCodes.BAD_REQUEST, 'Select at least one session.');
+        }
+
         // Normalize selected sessions
-        const sessionIds = selectedSessions.map((s) => String(s).toLowerCase().trim());
+        const sessionIds = cleanedSelectedSessions.map((s) => String(s).toLowerCase().trim());
         const uniqueSessionIds = [...new Set(sessionIds)];
 
-        if (uniqueSessionIds.length !== selectedSessions.length) {
+        if (uniqueSessionIds.length !== cleanedSelectedSessions.length) {
             throw new ApiError(StatusCodes.BAD_REQUEST, 'Duplicate sessions are not allowed.');
         }
 
@@ -120,11 +128,7 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
             $or: [
                 {
                     bookingStatus: {
-                        $in: [
-                            BOOKING_STATUS.PAYMENT_SUCCESS,
-                            BOOKING_STATUS.TICKET_GENERATED,
-                            BOOKING_STATUS.CHECKED_IN,
-                        ],
+                        $in: [BOOKING_STATUS.PAYMENT_SUCCESS, BOOKING_STATUS.TICKET_GENERATED, BOOKING_STATUS.CHECKED_IN],
                     },
                 },
                 {
@@ -139,7 +143,7 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
         if (alreadyBooked + ticketCount > MAX_TICKETS_PER_USER) {
             throw new ApiError(
                 StatusCodes.BAD_REQUEST,
-                `Maximum ticket limit exceeded. Already booked ${alreadyBooked}. Maximum allowed is ${MAX_TICKETS_PER_USER}.`
+                `Maximum ticket limit exceeded. Already booked ${alreadyBooked}. Maximum allowed is ${MAX_TICKETS_PER_USER}.`,
             );
         }
 
@@ -166,10 +170,7 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
                             _id: sessionDoc._id,
                             isActive: true,
                             $expr: {
-                                $gte: [
-                                    { $subtract: ['$totalSeats', { $add: ['$soldSeats', '$reservedSeats'] }] },
-                                    ticketCount,
-                                ],
+                                $gte: [{ $subtract: ['$totalSeats', { $add: ['$soldSeats', '$reservedSeats'] }] }, ticketCount],
                             },
                         },
                         {
@@ -177,14 +178,11 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
                         },
                         {
                             returnDocument: 'after',
-                        }
+                        },
                     );
 
                     if (!updatedSession) {
-                        throw new ApiError(
-                            StatusCodes.BAD_REQUEST,
-                            `Not enough seats available for ${sessionDoc.title}.`
-                        );
+                        throw new ApiError(StatusCodes.BAD_REQUEST, `Not enough seats available for ${sessionDoc.title}.`);
                     }
 
                     successfullyReservedDbIds.push(sessionDoc._id);
@@ -215,10 +213,7 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
             // Compensating rollback for any reserved seats if subsequent session failed
             if (successfullyReservedDbIds.length > 0) {
                 try {
-                    await Session.updateMany(
-                        { _id: { $in: successfullyReservedDbIds } },
-                        { $inc: { reservedSeats: -ticketCount } }
-                    );
+                    await Session.updateMany({ _id: { $in: successfullyReservedDbIds } }, { $inc: { reservedSeats: -ticketCount } });
                 } catch (rollbackErr) {
                     console.error('Rollback error during reservation failure:', rollbackErr);
                 }
@@ -247,7 +242,7 @@ export const handlePaymentFailure = async (bookingId, reason = 'Payment failed')
                 bookingStatus: BOOKING_STATUS.PAYMENT_FAILED,
             },
         },
-        { returnDocument: 'before' } // returns document prior to update
+        { returnDocument: 'before' }, // returns document prior to update
     );
 
     if (!booking) {
@@ -263,18 +258,12 @@ export const handlePaymentFailure = async (bookingId, reason = 'Payment failed')
     if (booking.selectedSessions && booking.selectedSessions.length > 0 && booking.ticketCount > 0) {
         const isObjectIds = booking.selectedSessions.every((id) => mongoose.Types.ObjectId.isValid(id));
         if (isObjectIds) {
-            await Session.updateMany(
-                { _id: { $in: booking.selectedSessions } },
-                { $inc: { reservedSeats: -booking.ticketCount } }
-            );
+            await Session.updateMany({ _id: { $in: booking.selectedSessions } }, { $inc: { reservedSeats: -booking.ticketCount } });
         } else {
             for (const sId of booking.selectedSessions) {
                 const staticSess = getSessionById(sId);
                 const searchTitle = staticSess ? staticSess.title : sId;
-                await Session.updateOne(
-                    { title: { $regex: new RegExp(`^${searchTitle}`, 'i') } },
-                    { $inc: { reservedSeats: -booking.ticketCount } }
-                );
+                await Session.updateOne({ title: { $regex: new RegExp(`^${searchTitle}`, 'i') } }, { $inc: { reservedSeats: -booking.ticketCount } });
             }
         }
     }
@@ -299,7 +288,7 @@ export const expireBooking = async (bookingId) => {
                 bookingStatus: BOOKING_STATUS.EXPIRED,
             },
         },
-        { returnDocument: 'before' } // returns document prior to update
+        { returnDocument: 'before' }, // returns document prior to update
     );
 
     if (!booking) {
@@ -315,18 +304,12 @@ export const expireBooking = async (bookingId) => {
     if (booking.selectedSessions && booking.selectedSessions.length > 0 && booking.ticketCount > 0) {
         const isObjectIds = booking.selectedSessions.every((id) => mongoose.Types.ObjectId.isValid(id));
         if (isObjectIds) {
-            await Session.updateMany(
-                { _id: { $in: booking.selectedSessions } },
-                { $inc: { reservedSeats: -booking.ticketCount } }
-            );
+            await Session.updateMany({ _id: { $in: booking.selectedSessions } }, { $inc: { reservedSeats: -booking.ticketCount } });
         } else {
             for (const sId of booking.selectedSessions) {
                 const staticSess = getSessionById(sId);
                 const searchTitle = staticSess ? staticSess.title : sId;
-                await Session.updateOne(
-                    { title: { $regex: new RegExp(`^${searchTitle}`, 'i') } },
-                    { $inc: { reservedSeats: -booking.ticketCount } }
-                );
+                await Session.updateOne({ title: { $regex: new RegExp(`^${searchTitle}`, 'i') } }, { $inc: { reservedSeats: -booking.ticketCount } });
             }
         }
     }
@@ -385,7 +368,7 @@ export const getBookingById = async (bookingId) => {
         const isObjectIds = booking.selectedSessions.every((id) => mongoose.Types.ObjectId.isValid(id));
         if (isObjectIds) {
             sessionDetails = await Session.find({ _id: { $in: booking.selectedSessions } }).select(
-                '_id title day startTime endTime price totalSeats reservedSeats soldSeats speakers isActive'
+                '_id title day startTime endTime price totalSeats reservedSeats soldSeats speakers isActive',
             );
         } else {
             sessionDetails = getSessionsByIds(booking.selectedSessions);
