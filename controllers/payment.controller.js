@@ -12,6 +12,17 @@ import { uploadTicketPDF } from '../services/cloudinary.service.js';
 import { verifyPaymentSignature, verifyWebhookSignature } from '../providers/razorpay.js';
 import logger from '../utils/logger.js';
 
+export const isWriteConflictError = (error) => {
+    if (!error) return false;
+
+    return (
+        error.code === 112 ||
+        error.codeName === 'WriteConflict' ||
+        error.name === 'WriteConflict' ||
+        (typeof error.message === 'string' && /Write conflict|write conflict/i.test(error.message))
+    );
+};
+
 /**
  * Process booking completion - Generate ticket, upload, send email
  */
@@ -258,6 +269,20 @@ export const verifyPayment = asyncHandler(async (req, res) => {
         await session.abortTransaction();
         session.endSession();
 
+        if (isWriteConflictError(error)) {
+            logger.warn(
+                `Payment verification write conflict for booking: ${req.body?.bookingId || 'unknown'}; another request is already processing it.`,
+            );
+            return res.status(StatusCodes.OK).json({
+                success: true,
+                message: 'Payment already being processed',
+                data: {
+                    bookingId: req.body?.bookingId,
+                    bookingStatus: BOOKING_STATUS.PAYMENT_SUCCESS,
+                },
+            });
+        }
+
         logger.error('Payment verification error:', error);
 
         if (error instanceof ApiError) {
@@ -433,6 +458,14 @@ const handlePaymentCaptured = async (payload) => {
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
+
+        if (isWriteConflictError(error)) {
+            logger.warn(
+                `Webhook payment captured write conflict for order: ${payload?.payment?.entity?.order_id || 'unknown'}; another request is already processing it.`,
+            );
+            return;
+        }
+
         logger.error('Error handling payment captured webhook:', error);
         throw error;
     }
@@ -487,6 +520,14 @@ const handlePaymentFailed = async (payload) => {
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
+
+        if (isWriteConflictError(error)) {
+            logger.warn(
+                `Webhook payment failed write conflict for order: ${payload?.payment?.entity?.order_id || 'unknown'}; another request is already processing it.`,
+            );
+            return;
+        }
+
         logger.error('Error handling payment failed webhook:', error);
         throw error;
     }
