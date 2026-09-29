@@ -12,8 +12,10 @@ import sessionRoutes from './routes/session.route.js';
 import bookingRoutes from './routes/booking.route.js';
 import paymentRoutes from './routes/payment.route.js';
 import adminRoutes from './routes/admin.route.js';
+import ticketRoutes from './routes/ticket.route.js';
 import { createRateLimiter } from './providers/redis.js';
 import errorHandler from './middlewares/error.middleware.js';
+import { startTicketRetryWorker } from './controllers/payment.controller.js';
 
 const app = express();
 
@@ -77,6 +79,7 @@ app.use('/api/session', sessionRoutes);
 app.use('/api/booking', bookingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/ticket', ticketRoutes);
 
 // Error handler middleware
 app.use(errorHandler);
@@ -96,6 +99,7 @@ const startServer = async () => {
 
         // Start background reservation expiry processor
         const stopExpiryWorker = startExpiryWorker(30000);
+        const stopTicketRetryWorker = startTicketRetryWorker(30000);
 
         const PORT = process.env.PORT || 8080;
         const server = app.listen(PORT, () => {
@@ -105,6 +109,7 @@ const startServer = async () => {
         const shutdown = async () => {
             console.log('Shutting down server...');
             stopExpiryWorker();
+            stopTicketRetryWorker();
             await mongoose.connection.close();
             server.close(() => {
                 process.exit(0);

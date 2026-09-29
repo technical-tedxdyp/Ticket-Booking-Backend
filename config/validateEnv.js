@@ -25,10 +25,10 @@ const envSchema = z
         TWILIO_ACCOUNT_SID: z.string().optional(),
         TWILIO_AUTH_TOKEN: z.string().optional(),
         TWILIO_WHATSAPP_FROM: z.string().optional(),
-        UPSTASH_REDIS_REST_URL: z.string().optional(),
-        UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+        UPSTASH_REDIS_REST_URL: z.string(),
+        UPSTASH_REDIS_REST_TOKEN: z.string(),
         ADMIN_SECRET_KEY: z.string(),
-        FRONTEND_URL: z.string().optional(),
+        FRONTEND_URL: z.string(),
     })
     .superRefine((env, ctx) => {
         if (env.IS_RAZOR_PAY_ENABLE && (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET)) {

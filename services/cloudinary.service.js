@@ -12,17 +12,11 @@ cloudinary.config({
 export const uploadTicketPDF = async (pdfBuffer, ticketId) => {
     // Input validation
     if (!Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
-        throw new ApiError(
-            StatusCodes.BAD_REQUEST,
-            'A non-empty Buffer is required for pdfBuffer.',
-        );
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'A non-empty Buffer is required for pdfBuffer.');
     }
 
     if (!ticketId || typeof ticketId !== 'string' || ticketId.trim() === '') {
-        throw new ApiError(
-            StatusCodes.BAD_REQUEST,
-            'A valid, non-empty ticketId string is required.',
-        );
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'A valid, non-empty ticketId string is required.');
     }
 
     const sanitizedTicketId = ticketId.trim();
@@ -32,18 +26,13 @@ export const uploadTicketPDF = async (pdfBuffer, ticketId) => {
             {
                 resource_type: 'raw',
                 folder: 'TEDX 2026',
-                public_id: sanitizedTicketId,
+                public_id: `${sanitizedTicketId}.pdf`,
                 overwrite: true,
                 invalidate: true,
             },
             (error, result) => {
                 if (error) {
-                    reject(
-                        new ApiError(
-                            StatusCodes.BAD_GATEWAY,
-                            `Cloudinary upload failed: ${error.message}`,
-                        ),
-                    );
+                    reject(new ApiError(StatusCodes.BAD_GATEWAY, `Cloudinary upload failed: ${error.message}`));
                 } else {
                     resolve(result);
                 }
@@ -60,12 +49,8 @@ export const uploadTicketPDF = async (pdfBuffer, ticketId) => {
 };
 
 export const deleteTicketPDF = async (publicId) => {
-
     if (!publicId || typeof publicId !== 'string' || publicId.trim() === '') {
-        throw new ApiError(
-            StatusCodes.BAD_REQUEST,
-            'A valid, non-empty publicId string is required.',
-        );
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'A valid, non-empty publicId string is required.');
     }
 
     const result = await cloudinary.uploader.destroy(publicId.trim(), {
@@ -74,10 +59,7 @@ export const deleteTicketPDF = async (publicId) => {
     });
 
     if (result.result !== 'ok') {
-        throw new ApiError(
-            StatusCodes.NOT_FOUND,
-            `Cloudinary could not delete resource '${publicId}': ${result.result}`,
-        );
+        throw new ApiError(StatusCodes.NOT_FOUND, `Cloudinary could not delete resource '${publicId}': ${result.result}`);
     }
 
     return result;

@@ -27,7 +27,7 @@ const fonts = {
     medium: path.join(FONT_DIR, 'SpaceGrotesk-Medium.ttf'),
     semibold: path.join(FONT_DIR, 'SpaceGrotesk-SemiBold.ttf'),
     bold: path.join(FONT_DIR, 'SpaceGrotesk-Bold.ttf'),
-    mono: path.join(FONT_DIR, 'VT323-Regular.ttf')
+    mono: path.join(FONT_DIR, 'VT323-Regular.ttf'),
 };
 
 // -----------------------------------------------------------------------------
@@ -52,7 +52,7 @@ const COLORS = {
     DIVIDER: '#DCE1E8',
     SHADOW: '#E2E6EC',
 
-    BLACK: '#000000'
+    BLACK: '#000000',
 };
 
 // -----------------------------------------------------------------------------
@@ -73,12 +73,7 @@ function safeString(value, fallback = '') {
 
 function getValue(object, keys, fallback = '') {
     for (const key of keys) {
-        if (
-            object &&
-            object[key] !== undefined &&
-            object[key] !== null &&
-            String(object[key]).trim() !== ''
-        ) {
+        if (object && object[key] !== undefined && object[key] !== null && String(object[key]).trim() !== '') {
             return String(object[key]);
         }
     }
@@ -86,15 +81,25 @@ function getValue(object, keys, fallback = '') {
     return fallback;
 }
 
+function formatSessionDateTime(value, options) {
+    if (!value) {
+        return '';
+    }
+
+    const date = value instanceof Date ? value : new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    return new Intl.DateTimeFormat('en-IN', {
+        timeZone: 'UTC',
+        ...options,
+    }).format(date);
+}
+
 function drawDivider(doc, x1, y, x2, color = COLORS.DIVIDER) {
-    doc
-        .save()
-        .moveTo(x1, y)
-        .lineTo(x2, y)
-        .lineWidth(0.7)
-        .strokeColor(color)
-        .stroke()
-        .restore();
+    doc.save().moveTo(x1, y).lineTo(x2, y).lineWidth(0.7).strokeColor(color).stroke().restore();
 }
 
 /**
@@ -102,22 +107,13 @@ function drawDivider(doc, x1, y, x2, color = COLORS.DIVIDER) {
  * (down to minSize) and falls back to an ellipsis if still too long.
  */
 function drawFittedText(doc, text, x, y, options = {}) {
-    const {
-        font = fonts.medium,
-        size = 10,
-        minSize = 7,
-        color = COLORS.TEXT,
-        width,
-        align = 'left',
-        characterSpacing = 0,
-        lineGap = 0
-    } = options;
+    const { font = fonts.medium, size = 10, minSize = 7, color = COLORS.TEXT, width, align = 'left', characterSpacing = 0, lineGap = 0 } = options;
 
     const value = safeString(text);
 
     const lines = value
         .split('\n')
-        .map(line => line.trim())
+        .map((line) => line.trim())
         .filter(Boolean);
 
     // Single-line text
@@ -127,23 +123,18 @@ function drawFittedText(doc, text, x, y, options = {}) {
 
         doc.font(font).fontSize(fontSize);
 
-        while (
-            fontSize > minSize &&
-            doc.widthOfString(singleLine) > width
-        ) {
+        while (fontSize > minSize && doc.widthOfString(singleLine) > width) {
             fontSize -= 0.5;
             doc.fontSize(fontSize);
         }
 
-        doc
-            .fillColor(color)
-            .text(singleLine, x, y, {
-                width,
-                height: fontSize * 1.3,
-                align,
-                ellipsis: true,
-                characterSpacing
-            });
+        doc.fillColor(color).text(singleLine, x, y, {
+            width,
+            height: fontSize * 1.3,
+            align,
+            ellipsis: true,
+            characterSpacing,
+        });
 
         return;
     }
@@ -154,31 +145,19 @@ function drawFittedText(doc, text, x, y, options = {}) {
     doc.font(font).fontSize(fontSize);
 
     // Find a size that allows the longest line to fit.
-    const longestLine = lines.reduce(
-        (longest, line) =>
-            doc.widthOfString(line) >
-                doc.widthOfString(longest)
-                ? line
-                : longest,
-        ''
-    );
+    const longestLine = lines.reduce((longest, line) => (doc.widthOfString(line) > doc.widthOfString(longest) ? line : longest), '');
 
-    while (
-        fontSize > minSize &&
-        doc.widthOfString(longestLine) > width
-    ) {
+    while (fontSize > minSize && doc.widthOfString(longestLine) > width) {
         fontSize -= 0.5;
         doc.fontSize(fontSize);
     }
 
-    doc
-        .fillColor(color)
-        .text(lines.join('\n'), x, y, {
-            width,
-            align,
-            lineGap,
-            characterSpacing
-        });
+    doc.fillColor(color).text(lines.join('\n'), x, y, {
+        width,
+        align,
+        lineGap,
+        characterSpacing,
+    });
 }
 
 // -----------------------------------------------------------------------------
@@ -188,101 +167,42 @@ function drawFittedText(doc, text, x, y, options = {}) {
 function drawIcon(doc, type, cx, cy, size = 28) {
     const radius = size / 2;
 
-    doc
-        .save()
-        .circle(cx, cy, radius)
-        .fill(COLORS.RED)
-        .restore();
+    doc.save().circle(cx, cy, radius).fill(COLORS.RED).restore();
 
     const s = size / 28;
 
-    doc
-        .save()
-        .translate(cx, cy)
-        .scale(s)
-        .lineWidth(1.4)
-        .lineCap('round')
-        .lineJoin('round')
-        .strokeColor(COLORS.WHITE)
-        .fillColor(COLORS.WHITE);
+    doc.save().translate(cx, cy).scale(s).lineWidth(1.4).lineCap('round').lineJoin('round').strokeColor(COLORS.WHITE).fillColor(COLORS.WHITE);
 
     if (type === 'user') {
-        doc
-            .circle(0, -4, 4)
-            .stroke();
+        doc.circle(0, -4, 4).stroke();
 
-        doc
-            .moveTo(-7, 7)
-            .bezierCurveTo(-6, 1, 6, 1, 7, 7)
-            .stroke();
-
+        doc.moveTo(-7, 7).bezierCurveTo(-6, 1, 6, 1, 7, 7).stroke();
     } else if (type === 'phone') {
-        doc
-            .roundedRect(-4.5, -8, 9, 16, 2)
-            .stroke();
+        doc.roundedRect(-4.5, -8, 9, 16, 2).stroke();
 
-        doc
-            .moveTo(-1.5, 5)
-            .lineTo(1.5, 5)
-            .stroke();
-
+        doc.moveTo(-1.5, 5).lineTo(1.5, 5).stroke();
     } else if (type === 'email') {
-        doc
-            .roundedRect(-9, -7, 18, 14, 2)
-            .stroke();
+        doc.roundedRect(-9, -7, 18, 14, 2).stroke();
 
-        doc
-            .moveTo(-8, -6)
-            .lineTo(0, 1)
-            .lineTo(8, -6)
-            .stroke();
-
+        doc.moveTo(-8, -6).lineTo(0, 1).lineTo(8, -6).stroke();
     } else if (type === 'ticket') {
-        doc
-            .roundedRect(-9, -6, 18, 12, 2)
-            .stroke();
+        doc.roundedRect(-9, -6, 18, 12, 2).stroke();
 
-        doc
-            .moveTo(-3, -4.5)
-            .lineTo(-3, 4.5)
-            .dash(1, { space: 2 })
-            .stroke()
-            .undash();
-
+        doc.moveTo(-3, -4.5).lineTo(-3, 4.5).dash(1, { space: 2 }).stroke().undash();
     } else if (type === 'calendar') {
-        doc
-            .roundedRect(-8, -7, 16, 15, 2)
-            .stroke();
+        doc.roundedRect(-8, -7, 16, 15, 2).stroke();
 
-        doc
-            .moveTo(-8, -2)
-            .lineTo(8, -2)
-            .stroke();
+        doc.moveTo(-8, -2).lineTo(8, -2).stroke();
 
-        doc
-            .moveTo(-4, -10)
-            .lineTo(-4, -5)
-            .stroke();
+        doc.moveTo(-4, -10).lineTo(-4, -5).stroke();
 
-        doc
-            .moveTo(4, -10)
-            .lineTo(4, -5)
-            .stroke();
-
+        doc.moveTo(4, -10).lineTo(4, -5).stroke();
     } else if (type === 'clock') {
-        doc
-            .circle(0, 0, 8)
-            .stroke();
+        doc.circle(0, 0, 8).stroke();
 
-        doc
-            .moveTo(0, 0)
-            .lineTo(0, -5)
-            .stroke();
+        doc.moveTo(0, 0).lineTo(0, -5).stroke();
 
-        doc
-            .moveTo(0, 0)
-            .lineTo(4, 2)
-            .stroke();
+        doc.moveTo(0, 0).lineTo(4, 2).stroke();
     }
 
     doc.restore();
@@ -297,23 +217,17 @@ function drawHeader(doc, pageW) {
     const marginX = 30;
 
     // Dark background
-    doc
-        .save()
-        .rect(0, 0, pageW, headerH)
-        .fill(COLORS.DARK)
-        .restore();
+    doc.save().rect(0, 0, pageW, headerH).fill(COLORS.DARK).restore();
 
     // Subtle lighter band
-    doc
-        .save()
+    doc.save()
         .rect(0, headerH - 34, pageW, 34)
         .fillOpacity(0.35)
         .fill(COLORS.DARK_2)
         .restore();
 
     // Red accent stripes
-    doc
-        .save()
+    doc.save()
         .moveTo(pageW - 262, 0)
         .lineTo(pageW - 232, 0)
         .lineTo(pageW - 272, headerH)
@@ -322,8 +236,7 @@ function drawHeader(doc, pageW) {
         .fill(COLORS.BRIGHT_RED)
         .restore();
 
-    doc
-        .save()
+    doc.save()
         .moveTo(pageW - 222, 0)
         .lineTo(pageW - 210, 0)
         .lineTo(pageW - 250, headerH)
@@ -334,36 +247,33 @@ function drawHeader(doc, pageW) {
         .restore();
 
     // Heading
-    doc
-        .font(fonts.bold)
+    doc.font(fonts.bold)
         .fontSize(29)
         .fillColor(COLORS.RED)
         .text('TEDx', marginX, 28, {
             continued: true,
-            lineBreak: false
+            lineBreak: false,
         })
         .fillColor(COLORS.WHITE)
         .text('DYPAkurdi', {
-            lineBreak: false
+            lineBreak: false,
         });
 
     // Tagline
-    doc
-        .font(fonts.medium)
+    doc.font(fonts.medium)
         .fontSize(11)
         .fillColor(COLORS.LIGHT_TEXT)
         .text('Meandering into the ', marginX + 1, 71, {
             continued: true,
-            lineBreak: false
+            lineBreak: false,
         })
         .fillColor(COLORS.RED)
         .text('Mosaic', {
-            lineBreak: false
+            lineBreak: false,
         });
 
     // Short red rule
-    doc
-        .save()
+    doc.save()
         .rect(marginX + 1, 94, 46, 3)
         .fill(COLORS.RED)
         .restore();
@@ -375,40 +285,18 @@ function drawHeader(doc, pageW) {
     const tileX = pageW - marginX - tileW;
     const tileY = (headerH - tileH) / 2;
 
-    doc
-        .save()
-        .roundedRect(
-            tileX,
-            tileY,
-            tileW,
-            tileH,
-            10
-        )
-        .fill(COLORS.WHITE)
-        .restore();
+    doc.save().roundedRect(tileX, tileY, tileW, tileH, 10).fill(COLORS.WHITE).restore();
 
     if (exists(LOGO_PATH)) {
-        doc.image(
-            LOGO_PATH,
-            tileX + 8,
-            tileY + 8,
-            {
-                fit: [
-                    tileW - 16,
-                    tileH - 16
-                ],
-                align: 'center',
-                valign: 'center'
-            }
-        );
+        doc.image(LOGO_PATH, tileX + 8, tileY + 8, {
+            fit: [tileW - 16, tileH - 16],
+            align: 'center',
+            valign: 'center',
+        });
     }
 
     // Red base line
-    doc
-        .save()
-        .rect(0, headerH, pageW, 4)
-        .fill(COLORS.RED)
-        .restore();
+    doc.save().rect(0, headerH, pageW, 4).fill(COLORS.RED).restore();
 
     return headerH + 4;
 }
@@ -420,78 +308,37 @@ function drawHeader(doc, pageW) {
 function drawTicketTitle(doc, pageW, y) {
     const marginX = 27;
 
-    doc
-        .save()
-        .roundedRect(
-            marginX,
-            y,
-            38,
-            38,
-            8
-        )
-        .fill(COLORS.RED)
-        .restore();
+    doc.save().roundedRect(marginX, y, 38, 38, 8).fill(COLORS.RED).restore();
 
-    drawIcon(
-        doc,
-        'ticket',
-        marginX + 19,
-        y + 19,
-        22
-    );
+    drawIcon(doc, 'ticket', marginX + 19, y + 19, 22);
 
-    doc
-        .font(fonts.bold)
+    doc.font(fonts.bold)
         .fontSize(25)
         .fillColor(COLORS.TEXT)
-        .text(
-            'TICKET',
-            marginX + 52,
-            y + 5,
-            {
-                continued: true,
-                lineBreak: false
-            }
-        )
+        .text('TICKET', marginX + 52, y + 5, {
+            continued: true,
+            lineBreak: false,
+        });
 
     // Official entry pass
     const pillW = 170;
     const pillH = 24;
 
-    const pillX =
-        pageW - marginX - pillW;
+    const pillX = pageW - marginX - pillW;
 
     const pillY = y + 7;
 
-    doc
-        .save()
-        .roundedRect(
-            pillX,
-            pillY,
-            pillW,
-            pillH,
-            12
-        )
-        .lineWidth(0.8)
-        .strokeColor(COLORS.RED)
-        .stroke()
-        .restore();
+    doc.save().roundedRect(pillX, pillY, pillW, pillH, 12).lineWidth(0.8).strokeColor(COLORS.RED).stroke().restore();
 
-    doc
-        .font(fonts.bold)
+    doc.font(fonts.bold)
         .fontSize(7.5)
         .fillColor(COLORS.RED)
-        .text(
-            'OFFICIAL ENTRY PASS',
-            pillX,
-            pillY + 8,
-            {
-                width: pillW,
-                align: 'center',
-                characterSpacing: 1.6,
-                lineBreak: false
-            }
-        );
+        .text('OFFICIAL ENTRY PASS', pillX, pillY + 8, {
+            width: pillW,
+            align: 'center',
+            characterSpacing: 1.6,
+            lineBreak: false,
+        });
 
     return 38;
 }
@@ -500,100 +347,56 @@ function drawTicketTitle(doc, pageW, y) {
 // TICKET FIELD CELL
 // -----------------------------------------------------------------------------
 
-function drawField(
-    doc,
-    {
-        x,
-        y,
-        width,
-        icon,
-        label,
-        value,
-        mono = false
-    }
-) {
-    drawIcon(
-        doc,
-        icon,
-        x + 15,
-        y + 17,
-        30
-    );
+function drawField(doc, { x, y, width, icon, label, value, mono = false }) {
+    drawIcon(doc, icon, x + 15, y + 17, 30);
 
-    doc
-        .font(fonts.bold)
+    doc.font(fonts.bold)
         .fontSize(6.7)
         .fillColor(COLORS.LIGHT_TEXT)
-        .text(
-            label.toUpperCase(),
-            x + 40,
-            y + 2,
-            {
-                width: width - 40,
-                characterSpacing: 1.2,
-                lineBreak: false
-            }
-        );
+        .text(label.toUpperCase(), x + 40, y + 2, {
+            width: width - 40,
+            characterSpacing: 1.2,
+            lineBreak: false,
+        });
 
-    drawFittedText(
-        doc,
-        safeString(value, '—'),
-        x + 40,
-        y + 15,
-        {
-            font: mono
-                ? fonts.mono
-                : fonts.semibold,
-            size: mono ? 15 : 11,
-            minSize: 7.5,
-            color: COLORS.TEXT,
-            width: width - 40
-        }
-    );
+    drawFittedText(doc, safeString(value, '—'), x + 40, y + 15, {
+        font: mono ? fonts.mono : fonts.semibold,
+        size: mono ? 15 : 11,
+        minSize: 7.5,
+        color: COLORS.TEXT,
+        width: width - 40,
+    });
 }
 
 // -----------------------------------------------------------------------------
 // TICKET CARD
 // -----------------------------------------------------------------------------
 
-function drawQRCornerMarks(
-    doc,
-    x,
-    y,
-    size
-) {
+function drawQRCornerMarks(doc, x, y, size) {
     const mark = 14;
 
-    doc
-        .save()
-        .strokeColor(COLORS.RED)
-        .lineWidth(3.5)
-        .lineCap('square');
+    doc.save().strokeColor(COLORS.RED).lineWidth(3.5).lineCap('square');
 
     // Top left
-    doc
-        .moveTo(x, y + mark)
+    doc.moveTo(x, y + mark)
         .lineTo(x, y)
         .lineTo(x + mark, y)
         .stroke();
 
     // Top right
-    doc
-        .moveTo(x + size - mark, y)
+    doc.moveTo(x + size - mark, y)
         .lineTo(x + size, y)
         .lineTo(x + size, y + mark)
         .stroke();
 
     // Bottom left
-    doc
-        .moveTo(x, y + size - mark)
+    doc.moveTo(x, y + size - mark)
         .lineTo(x, y + size)
         .lineTo(x + mark, y + size)
         .stroke();
 
     // Bottom right
-    doc
-        .moveTo(x + size - mark, y + size)
+    doc.moveTo(x + size - mark, y + size)
         .lineTo(x + size, y + size)
         .lineTo(x + size, y + size - mark)
         .stroke();
@@ -601,15 +404,7 @@ function drawQRCornerMarks(
     doc.restore();
 }
 
-function drawTicketCard(
-    doc,
-    ticketData,
-    qrCodeBuffer,
-    pageW,
-    x,
-    y,
-    width
-) {
+function drawTicketCard(doc, ticketData, qrCodeBuffer, pageW, x, y, width) {
     const detailsH = 302;
     const qrSectionH = 226;
     const cardH = detailsH + qrSectionH;
@@ -618,106 +413,60 @@ function drawTicketCard(
     const innerW = width - pad * 2;
     const gap = 16;
 
-    const colW =
-        (innerW - gap) / 2;
+    const colW = (innerW - gap) / 2;
 
     // -------------------------------------------------------------------------
     // DATA
     // -------------------------------------------------------------------------
 
-    const name = getValue(
-        ticketData,
-        [
-            'name',
-            'attendeeName',
-            'fullName',
-            'userName'
-        ],
-        'Guest'
-    );
+    const name = getValue(ticketData, ['name', 'attendeeName', 'fullName', 'userName'], 'Guest');
 
-    const phone = getValue(
-        ticketData,
-        [
-            'phone',
-            'phoneNumber',
-            'mobile',
-            'mobileNumber'
-        ],
-        '—'
-    );
+    const phone = getValue(ticketData, ['phone', 'phoneNumber', 'mobile', 'mobileNumber'], '—');
 
-    const email = getValue(
-        ticketData,
-        [
-            'email',
-            'emailAddress'
-        ],
-        '—'
-    );
+    const email = getValue(ticketData, ['email', 'emailAddress'], '—');
 
-    const ticketId = getValue(
-        ticketData,
-        [
-            'ticketId',
-            'ticketID',
-            'id'
-        ],
-        '—'
-    );
+    const ticketId = getValue(ticketData, ['ticketId', 'ticketID', 'id'], '—');
 
-    const session = getValue(
-        ticketData,
-        [
-            'session',
-            'sessionName',
-            'talk',
-            'talkName'
-        ],
-        'Fragment'
-    );
+    const sessions = Array.isArray(ticketData.sessions) ? ticketData.sessions : [];
 
-    const sessionTiming = getValue(
-        ticketData,
-        [
-            'sessionTiming',
-            'sessionTimings',
-            'timing',
-            'time',
-            'sessionTime'
-        ],
-        '10:00 am – 11:00 am'
-    );
+    const session =
+        sessions
+            .map((entry) => safeString(entry?.title).trim())
+            .filter(Boolean)
+            .join('\n') || getValue(ticketData, ['session', 'sessionName', 'talk', 'talkName'], '—');
 
-    // Date
-    const sessionDate = getValue(
-        ticketData,
-        [
-            'sessionDate',
-            'date',
-            'eventDate'
-        ],
-        ''
-    );
+    const sessionDetails =
+        sessions
+            .map((entry) => {
+                const date = formatSessionDateTime(entry?.startTime, {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                });
+                const start = formatSessionDateTime(entry?.startTime, {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                });
+                const end = formatSessionDateTime(entry?.endTime, {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                });
+                const time = [start, end].filter(Boolean).join(' - ');
 
-    const sessionTimingWithDate =
-        sessionDate
-            ? `${sessionDate}\n${sessionTiming}`
-            : sessionTiming;
+                return [date, time].filter(Boolean).join(' | ');
+            })
+            .filter(Boolean)
+            .join('\n') ||
+        getValue(ticketData, ['sessionTiming', 'sessionTimings', 'timing', 'time', 'sessionTime', 'sessionDate', 'date', 'eventDate'], '—');
 
     // -------------------------------------------------------------------------
     // CARD SHADOW
     // -------------------------------------------------------------------------
 
-    doc
-        .save()
-        .roundedRect(
-            x + 2,
-            y + 4,
-            width,
-            cardH,
-            16
-        )
+    doc.save()
+        .roundedRect(x + 2, y + 4, width, cardH, 16)
         .fill(COLORS.SHADOW)
         .restore();
 
@@ -725,31 +474,11 @@ function drawTicketCard(
     // CARD
     // -------------------------------------------------------------------------
 
-    doc
-        .save()
-        .roundedRect(
-            x,
-            y,
-            width,
-            cardH,
-            16
-        )
-        .lineWidth(0.8)
-        .fillAndStroke(
-            COLORS.WHITE,
-            COLORS.DIVIDER
-        )
-        .restore();
+    doc.save().roundedRect(x, y, width, cardH, 16).lineWidth(0.8).fillAndStroke(COLORS.WHITE, COLORS.DIVIDER).restore();
 
     // Red accent tab
-    doc
-        .save()
-        .rect(
-            x + pad,
-            y,
-            64,
-            4
-        )
+    doc.save()
+        .rect(x + pad, y, 64, 4)
         .fill(COLORS.RED)
         .restore();
 
@@ -759,40 +488,23 @@ function drawTicketCard(
 
     const badgeW = 96;
 
-    doc
-        .font(fonts.bold)
+    doc.font(fonts.bold)
         .fontSize(7)
         .fillColor(COLORS.LIGHT_TEXT)
-        .text(
-            'ATTENDEE',
-            x + pad,
-            y + 22,
-            {
-                characterSpacing: 2,
-                lineBreak: false
-            }
-        );
+        .text('ATTENDEE', x + pad, y + 22, {
+            characterSpacing: 2,
+            lineBreak: false,
+        });
 
-    drawFittedText(
-        doc,
-        name,
-        x + pad,
-        y + 36,
-        {
-            font: fonts.bold,
-            size: 26,
-            minSize: 14,
-            color: COLORS.TEXT,
-            width: innerW - badgeW - 14
-        }
-    );
+    drawFittedText(doc, name, x + pad, y + 36, {
+        font: fonts.bold,
+        size: 26,
+        minSize: 14,
+        color: COLORS.TEXT,
+        width: innerW - badgeW - 14,
+    });
 
-    drawDivider(
-        doc,
-        x + pad,
-        y + 84,
-        x + width - pad
-    );
+    drawDivider(doc, x + pad, y + 84, x + width - pad);
 
     // -------------------------------------------------------------------------
     // DETAIL GRID
@@ -800,8 +512,7 @@ function drawTicketCard(
 
     const col1 = x + pad;
 
-    const col2 =
-        x + pad + colW + gap;
+    const col2 = x + pad + colW + gap;
 
     const row1 = y + 102;
     const row2 = y + 160;
@@ -814,7 +525,7 @@ function drawTicketCard(
         width: colW,
         icon: 'phone',
         label: 'Phone No.',
-        value: phone
+        value: phone,
     });
 
     // Email
@@ -824,16 +535,10 @@ function drawTicketCard(
         width: colW,
         icon: 'email',
         label: 'Email',
-        value: email
+        value: email,
     });
 
-    drawDivider(
-        doc,
-        x + pad,
-        row2 - 11,
-        x + width - pad,
-        COLORS.OFF_WHITE
-    );
+    drawDivider(doc, x + pad, row2 - 11, x + width - pad, COLORS.OFF_WHITE);
 
     // Session
     drawField(doc, {
@@ -842,7 +547,7 @@ function drawTicketCard(
         width: colW,
         icon: 'calendar',
         label: 'Session',
-        value: session
+        value: session,
     });
 
     // Session timing + date
@@ -852,16 +557,10 @@ function drawTicketCard(
         width: colW,
         icon: 'clock',
         label: 'Session Date & Timings',
-        value: sessionTimingWithDate
+        value: sessionDetails,
     });
 
-    drawDivider(
-        doc,
-        x + pad,
-        row3 - 11,
-        x + width - pad,
-        COLORS.OFF_WHITE
-    );
+    drawDivider(doc, x + pad, row3 - 11, x + width - pad, COLORS.OFF_WHITE);
 
     // Ticket ID
     drawField(doc, {
@@ -871,7 +570,7 @@ function drawTicketCard(
         icon: 'ticket',
         label: 'Ticket ID',
         value: ticketId,
-        mono: true
+        mono: true,
     });
 
     // -------------------------------------------------------------------------
@@ -880,36 +579,20 @@ function drawTicketCard(
 
     const perfY = y + detailsH;
 
-    doc
-        .save()
-        .circle(
-            x,
-            perfY,
-            11
-        )
+    doc.save()
+        .circle(x, perfY, 11)
         .fill(COLORS.OFF_WHITE)
-        .circle(
-            x + width,
-            perfY,
-            11
-        )
+        .circle(x + width, perfY, 11)
         .fill(COLORS.OFF_WHITE)
         .restore();
 
-    doc
-        .save()
-        .moveTo(
-            x + 20,
-            perfY
-        )
-        .lineTo(
-            x + width - 20,
-            perfY
-        )
+    doc.save()
+        .moveTo(x + 20, perfY)
+        .lineTo(x + width - 20, perfY)
         .lineWidth(1)
         .strokeColor('#B9C1CC')
         .dash(4, {
-            space: 4
+            space: 4,
         })
         .stroke()
         .undash()
@@ -921,77 +604,44 @@ function drawTicketCard(
 
     const qrSize = 130;
 
-    const qrX =
-        (pageW - qrSize) / 2;
+    const qrX = (pageW - qrSize) / 2;
 
-    const qrY =
-        perfY + 30;
+    const qrY = perfY + 30;
 
-    doc
-        .save()
-        .rect(
-            qrX - 10,
-            qrY - 10,
-            qrSize + 20,
-            qrSize + 20
-        )
+    doc.save()
+        .rect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20)
         .lineWidth(0.8)
-        .fillAndStroke(
-            COLORS.WHITE,
-            COLORS.DIVIDER
-        )
+        .fillAndStroke(COLORS.WHITE, COLORS.DIVIDER)
         .restore();
 
     // QR buffer is generated by generateQRCode()
-    doc.image(
-        qrCodeBuffer,
-        qrX,
-        qrY,
-        {
-            width: qrSize,
-            height: qrSize
-        }
-    );
+    doc.image(qrCodeBuffer, qrX, qrY, {
+        width: qrSize,
+        height: qrSize,
+    });
 
-    drawQRCornerMarks(
-        doc,
-        qrX - 10,
-        qrY - 10,
-        qrSize + 20
-    );
+    drawQRCornerMarks(doc, qrX - 10, qrY - 10, qrSize + 20);
 
     // Existing text/design preserved
-    doc
-        .font(fonts.bold)
+    doc.font(fonts.bold)
         .fontSize(8)
         .fillColor(COLORS.MUTED)
-        .text(
-            'SCAN AT ENTRY',
-            0,
-            qrY + qrSize + 22,
-            {
-                width: pageW,
-                align: 'center',
-                characterSpacing: 3,
-                lineBreak: false
-            }
-        );
-
-    drawFittedText(
-        doc,
-        ticketId,
-        x + pad,
-        qrY + qrSize + 37,
-        {
-            font: fonts.mono,
-            size: 15,
-            minSize: 9,
-            color: COLORS.TEXT,
-            width: innerW,
+        .text('SCAN AT ENTRY', 0, qrY + qrSize + 22, {
+            width: pageW,
             align: 'center',
-            characterSpacing: 1.5
-        }
-    );
+            characterSpacing: 3,
+            lineBreak: false,
+        });
+
+    drawFittedText(doc, ticketId, x + pad, qrY + qrSize + 37, {
+        font: fonts.mono,
+        size: 15,
+        minSize: 9,
+        color: COLORS.TEXT,
+        width: innerW,
+        align: 'center',
+        characterSpacing: 1.5,
+    });
 
     return cardH;
 }
@@ -1000,37 +650,12 @@ function drawTicketCard(
 // NOTE PANEL
 // -----------------------------------------------------------------------------
 
-function drawNote(
-    doc,
-    x,
-    y,
-    width
-) {
+function drawNote(doc, x, y, width) {
     const h = 30;
 
-    doc
-        .save()
-        .roundedRect(
-            x,
-            y,
-            width,
-            h,
-            10
-        )
-        .fill(COLORS.WHITE)
-        .restore();
+    doc.save().roundedRect(x, y, width, h, 10).fill(COLORS.WHITE).restore();
 
-    doc
-        .save()
-        .roundedRect(
-            x,
-            y,
-            4,
-            h,
-            2
-        )
-        .fill(COLORS.RED)
-        .restore();
+    doc.save().roundedRect(x, y, 4, h, 2).fill(COLORS.RED).restore();
 
     // doc
     //     .font(fonts.bold)
@@ -1046,19 +671,13 @@ function drawNote(
     //         }
     //     );
 
-    doc
-        .font(fonts.regular)
+    doc.font(fonts.regular)
         .fontSize(8.5)
         .fillColor(COLORS.MUTED)
-        .text(
-            'Please show this ticket at the entry gate. Each QR code is valid for a single entry.',
-            x + 18,
-            y + 10,
-            {
-                width: width - 34,
-                height: 22
-            }
-        );
+        .text('Please show this ticket at the entry gate. Each QR code is valid for a single entry.', x + 18, y + 10, {
+            width: width - 34,
+            height: 22,
+        });
 
     return h;
 }
@@ -1067,98 +686,45 @@ function drawNote(
 // FOOTER
 // -----------------------------------------------------------------------------
 
-function drawFooter(
-    doc,
-    pageW,
-    pageH
-) {
+function drawFooter(doc, pageW, pageH) {
     const footerH = 60;
     const footerY = pageH - footerH;
 
     // Dark base
-    doc
-        .save()
-        .rect(
-            0,
-            footerY,
-            pageW,
-            footerH
-        )
-        .fill(COLORS.DARK)
-        .restore();
+    doc.save().rect(0, footerY, pageW, footerH).fill(COLORS.DARK).restore();
 
     // Red top line
-    doc
-        .save()
-        .rect(
-            0,
-            footerY,
-            pageW,
-            3
-        )
-        .fill(COLORS.RED)
-        .restore();
+    doc.save().rect(0, footerY, pageW, 3).fill(COLORS.RED).restore();
 
     // Slanted red corner
-    doc
-        .save()
-        .moveTo(
-            pageW - 46,
-            footerY + 3
-        )
-        .lineTo(
-            pageW,
-            footerY + 3
-        )
-        .lineTo(
-            pageW,
-            pageH
-        )
-        .lineTo(
-            pageW - 26,
-            pageH
-        )
+    doc.save()
+        .moveTo(pageW - 46, footerY + 3)
+        .lineTo(pageW, footerY + 3)
+        .lineTo(pageW, pageH)
+        .lineTo(pageW - 26, pageH)
         .closePath()
         .fill(COLORS.RED)
         .restore();
 
-    const centerY =
-        footerY + 31;
+    const centerY = footerY + 31;
 
     // -------------------------------------------------------------------------
     // WEBSITE
     // -------------------------------------------------------------------------
 
-    const websiteUrl =
-        'https://www.tedxdypakurdi.in/';
+    const websiteUrl = 'https://www.tedxdypakurdi.in/';
 
     const websiteX = 42;
 
-    doc
-        .save()
+    doc.save()
         .lineWidth(1.2)
         .strokeColor(COLORS.WHITE)
-        .circle(
-            websiteX,
-            centerY,
-            10
-        )
+        .circle(websiteX, centerY, 10)
         .stroke()
-        .ellipse(
-            websiteX,
-            centerY,
-            4.5,
-            10
-        )
+        .ellipse(websiteX, centerY, 4.5, 10)
         .stroke()
-        .moveTo(
-            websiteX - 10,
-            centerY
-        )
-        .lineTo(
-            websiteX + 10,
-            centerY
-        )
+        .moveTo(websiteX - 10, centerY)
+        .lineTo(websiteX + 10, centerY)
         .stroke()
         .restore();
 
@@ -1166,42 +732,20 @@ function drawFooter(
     const websiteTextY = centerY - 5;
     const websiteTextW = 130;
 
-    doc
-        .font(fonts.bold)
-        .fontSize(8)
-        .fillColor(COLORS.WHITE)
-        .text(
-            'www.tedxdypakurdi.in',
-            websiteTextX,
-            websiteTextY,
-            {
-                width: websiteTextW,
-                lineBreak: false
-            }
-        );
+    doc.font(fonts.bold).fontSize(8).fillColor(COLORS.WHITE).text('www.tedxdypakurdi.in', websiteTextX, websiteTextY, {
+        width: websiteTextW,
+        lineBreak: false,
+    });
 
-    doc.link(
-        websiteX - 12,
-        centerY - 14,
-        websiteTextW + 30,
-        28,
-        websiteUrl
-    );
+    doc.link(websiteX - 12, centerY - 14, websiteTextW + 30, 28, websiteUrl);
 
     // -------------------------------------------------------------------------
     // DIVIDER
     // -------------------------------------------------------------------------
 
-    doc
-        .save()
-        .moveTo(
-            pageW / 2,
-            footerY + 15
-        )
-        .lineTo(
-            pageW / 2,
-            footerY + 47
-        )
+    doc.save()
+        .moveTo(pageW / 2, footerY + 15)
+        .lineTo(pageW / 2, footerY + 47)
         .lineWidth(0.7)
         .strokeColor('#69717D')
         .stroke()
@@ -1211,124 +755,71 @@ function drawFooter(
     // INSTAGRAM
     // -------------------------------------------------------------------------
 
-    const instagramUrl =
-        'https://www.instagram.com/tedxdypakurdi/';
+    const instagramUrl = 'https://www.instagram.com/tedxdypakurdi/';
 
-    const instaX =
-        pageW / 2 + 40;
+    const instaX = pageW / 2 + 40;
 
-    doc
-        .save()
+    doc.save()
         .lineWidth(1.4)
         .strokeColor(COLORS.WHITE)
-        .roundedRect(
-            instaX,
-            centerY - 9,
-            18,
-            18,
-            5
-        )
+        .roundedRect(instaX, centerY - 9, 18, 18, 5)
         .stroke()
-        .circle(
-            instaX + 9,
-            centerY,
-            4
-        )
+        .circle(instaX + 9, centerY, 4)
         .stroke()
-        .circle(
-            instaX + 14,
-            centerY - 4.5,
-            1.1
-        )
+        .circle(instaX + 14, centerY - 4.5, 1.1)
         .fill(COLORS.WHITE)
         .restore();
 
-    const instagramTextX =
-        instaX + 28;
+    const instagramTextX = instaX + 28;
 
     const instagramTextW = 100;
 
-    doc
-        .font(fonts.bold)
+    doc.font(fonts.bold)
         .fontSize(8)
         .fillColor(COLORS.WHITE)
-        .text(
-            'tedxdypakurdi',
-            instagramTextX,
-            centerY - 5,
-            {
-                width: instagramTextW,
-                lineBreak: false
-            }
-        );
+        .text('tedxdypakurdi', instagramTextX, centerY - 5, {
+            width: instagramTextW,
+            lineBreak: false,
+        });
 
     // Clickable Instagram area
-    doc.link(
-        instaX - 4,
-        centerY - 14,
-        instagramTextW + 34,
-        28,
-        instagramUrl
-    );
+    doc.link(instaX - 4, centerY - 14, instagramTextW + 34, 28, instagramUrl);
 }
 
 // -----------------------------------------------------------------------------
 // MAIN PDF GENERATOR
 // -----------------------------------------------------------------------------
 
-export const generateTicketPDF = async (
-    ticketData
-) => {
+export const generateTicketPDF = async (ticketData) => {
     // -------------------------------------------------------------------------
     // VALIDATION
     // -------------------------------------------------------------------------
 
-    if (
-        !ticketData ||
-        typeof ticketData !== 'object'
-    ) {
-        throw new ApiError(
-            StatusCodes.BAD_REQUEST,
-            'Ticket data is required'
-        );
+    if (!ticketData || typeof ticketData !== 'object') {
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'Ticket data is required');
     }
 
     if (!ticketData.ticketId) {
-        throw new ApiError(
-            StatusCodes.BAD_REQUEST,
-            'Ticket ID is required'
-        );
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'Ticket ID is required');
     }
 
     // -------------------------------------------------------------------------
     // GENERATE QR USING EXISTING QR SERVICE
     // -------------------------------------------------------------------------
 
-    const qrCodeBuffer =
-        await generateQRCode(
-            ticketData.ticketId
-        );
+    const qrCodeBuffer = await generateQRCode(ticketData.ticketId);
 
     // -------------------------------------------------------------------------
     // CHECK REQUIRED ASSETS
     // -------------------------------------------------------------------------
 
     if (!exists(LOGO_PATH)) {
-        throw new ApiError(
-            StatusCodes.INTERNAL_SERVER_ERROR,
-            `TEDx Mosaic logo not found: ${LOGO_PATH}`
-        );
+        throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, `TEDx Mosaic logo not found: ${LOGO_PATH}`);
     }
 
-    for (
-        const [fontName, fontPath]
-        of Object.entries(fonts)
-    ) {
+    for (const [fontName, fontPath] of Object.entries(fonts)) {
         if (!exists(fontPath)) {
-            throw new ApiError(
-                StatusCodes.INTERNAL_SERVER_ERROR,
-                `Font "${fontName}" not found: ${fontPath}`
-            );
+            throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, `Font "${fontName}" not found: ${fontPath}`);
         }
     }
 
@@ -1345,35 +836,20 @@ export const generateTicketPDF = async (
             Title: 'TEDxDYP Akurdi - Ticket',
             Author: 'TEDxDYP Akurdi',
             Subject: 'TEDxDYP Akurdi Ticket',
-            Creator: 'TEDxDYP Akurdi'
-        }
+            Creator: 'TEDxDYP Akurdi',
+        },
     });
 
     // Register fonts
-    doc.registerFont(
-        'SpaceGrotesk-Regular',
-        fonts.regular
-    );
+    doc.registerFont('SpaceGrotesk-Regular', fonts.regular);
 
-    doc.registerFont(
-        'SpaceGrotesk-Medium',
-        fonts.medium
-    );
+    doc.registerFont('SpaceGrotesk-Medium', fonts.medium);
 
-    doc.registerFont(
-        'SpaceGrotesk-SemiBold',
-        fonts.semibold
-    );
+    doc.registerFont('SpaceGrotesk-SemiBold', fonts.semibold);
 
-    doc.registerFont(
-        'SpaceGrotesk-Bold',
-        fonts.bold
-    );
+    doc.registerFont('SpaceGrotesk-Bold', fonts.bold);
 
-    doc.registerFont(
-        'VT323',
-        fonts.mono
-    );
+    doc.registerFont('VT323', fonts.mono);
 
     const pageW = doc.page.width;
     const pageH = doc.page.height;
@@ -1384,121 +860,69 @@ export const generateTicketPDF = async (
 
     const chunks = [];
 
-    return await new Promise(
-        (resolve, reject) => {
-            doc.on(
-                'data',
-                (chunk) => chunks.push(chunk)
-            );
+    return await new Promise((resolve, reject) => {
+        doc.on('data', (chunk) => chunks.push(chunk));
 
-            doc.on(
-                'end',
-                () => {
-                    resolve(
-                        Buffer.concat(chunks)
-                    );
-                }
-            );
+        doc.on('end', () => {
+            resolve(Buffer.concat(chunks));
+        });
 
-            doc.on(
-                'error',
-                (error) => reject(error)
-            );
+        doc.on('error', (error) => reject(error));
 
-            try {
-                // -------------------------------------------------------------
-                // PAGE BACKGROUND
-                // -------------------------------------------------------------
+        try {
+            // -------------------------------------------------------------
+            // PAGE BACKGROUND
+            // -------------------------------------------------------------
 
-                doc
-                    .rect(
-                        0,
-                        0,
-                        pageW,
-                        pageH
-                    )
-                    .fill(COLORS.OFF_WHITE);
+            doc.rect(0, 0, pageW, pageH).fill(COLORS.OFF_WHITE);
 
-                // -------------------------------------------------------------
-                // HEADER
-                // -------------------------------------------------------------
+            // -------------------------------------------------------------
+            // HEADER
+            // -------------------------------------------------------------
 
-                const headerH =
-                    drawHeader(
-                        doc,
-                        pageW
-                    );
+            const headerH = drawHeader(doc, pageW);
 
-                const marginX = 27;
+            const marginX = 27;
 
-                const contentW =
-                    pageW - marginX * 2;
+            const contentW = pageW - marginX * 2;
 
-                let y =
-                    headerH + 20;
+            let y = headerH + 20;
 
-                // -------------------------------------------------------------
-                // TITLE ROW
-                // -------------------------------------------------------------
+            // -------------------------------------------------------------
+            // TITLE ROW
+            // -------------------------------------------------------------
 
-                const titleH =
-                    drawTicketTitle(
-                        doc,
-                        pageW,
-                        y
-                    );
+            const titleH = drawTicketTitle(doc, pageW, y);
 
-                y +=
-                    titleH + 18;
+            y += titleH + 18;
 
-                // -------------------------------------------------------------
-                // TICKET CARD
-                // -------------------------------------------------------------
+            // -------------------------------------------------------------
+            // TICKET CARD
+            // -------------------------------------------------------------
 
-                const cardH =
-                    drawTicketCard(
-                        doc,
-                        ticketData,
-                        qrCodeBuffer,
-                        pageW,
-                        marginX,
-                        y,
-                        contentW
-                    );
+            const cardH = drawTicketCard(doc, ticketData, qrCodeBuffer, pageW, marginX, y, contentW);
 
-                y +=
-                    cardH + 18;
+            y += cardH + 18;
 
-                // -------------------------------------------------------------
-                // NOTE
-                // -------------------------------------------------------------
+            // -------------------------------------------------------------
+            // NOTE
+            // -------------------------------------------------------------
 
-                drawNote(
-                    doc,
-                    marginX,
-                    y,
-                    contentW
-                );
+            drawNote(doc, marginX, y, contentW);
 
-                // -------------------------------------------------------------
-                // FOOTER
-                // -------------------------------------------------------------
+            // -------------------------------------------------------------
+            // FOOTER
+            // -------------------------------------------------------------
 
-                drawFooter(
-                    doc,
-                    pageW,
-                    pageH
-                );
+            drawFooter(doc, pageW, pageH);
 
-                // -------------------------------------------------------------
-                // FINISH
-                // -------------------------------------------------------------
+            // -------------------------------------------------------------
+            // FINISH
+            // -------------------------------------------------------------
 
-                doc.end();
-
-            } catch (error) {
-                reject(error);
-            }
+            doc.end();
+        } catch (error) {
+            reject(error);
         }
-    );
+    });
 };

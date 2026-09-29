@@ -69,6 +69,8 @@ const bookingSchema = new mongoose.Schema(
         },
 
         paymentVerifiedAt: Date,
+        ticketProcessingAt: Date,
+        ticketRetryAfter: Date,
         ticketGeneratedAt: Date,
         checkedInAt: Date,
 

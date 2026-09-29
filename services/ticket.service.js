@@ -6,11 +6,12 @@ import { generateTicketPDF } from './pdf.service.js';
 import Booking from '../models/booking.model.js';
 import mongoose from 'mongoose';
 import Session from '../models/session.model.js';
+import Event from '../models/event.model.js';
 
 const getBookingSessions = async (selectedSessions = []) => {
     const sessionIds = selectedSessions.filter((id) => mongoose.Types.ObjectId.isValid(id));
     const foundSessions = await Session.find({ _id: { $in: sessionIds } })
-        .populate('event')
+        .populate({ path: 'event', model: Event })
         .lean();
     const sessionsById = new Map(foundSessions.map((session) => [session._id.toString(), session]));
     return sessionIds.map((id) => sessionsById.get(id)).filter(Boolean);
@@ -24,6 +25,7 @@ const buildTicketData = async (booking, ticketId) => {
         ticketId,
         name: booking.name,
         email: booking.email ?? null,
+        phone: booking.phone ?? null,
         ticketCount: booking.ticketCount ?? null,
         totalAmount: booking.totalAmount ?? null,
         eventTitle: event?.title ?? null,
@@ -107,4 +109,19 @@ export const getTicketById = async (ticketId) => {
         checkedInAt: booking.checkedInAt,
         selectedSessions: sessions,
     };
+};
+
+export const getTicketPdfById = async (ticketId) => {
+    if (!ticketId || typeof ticketId !== 'string' || ticketId.trim() === '') {
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'A valid ticketId is required.');
+    }
+
+    const booking = await Booking.findOne({ ticketId: ticketId.trim() }).lean();
+
+    if (!booking) {
+        throw new ApiError(StatusCodes.NOT_FOUND, 'Ticket not found.');
+    }
+
+    const ticketData = await buildTicketData(booking, booking.ticketId);
+    return generateTicketPDF(ticketData);
 };

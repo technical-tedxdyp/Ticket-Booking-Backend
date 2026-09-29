@@ -3,13 +3,26 @@ import { Resend } from 'resend';
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export const EVENT_DETAILS = {
-    eventName: 'TEDxDYPatilUniversity 2026',
-    theme: 'Ideas Worth Spreading: Beyond Horizons',
-    date: 'Saturday, October 24, 2026',
-    time: '09:00 AM - 05:00 PM IST',
-    venue: 'DY Patil University Auditorium, Sector 7, Nerul, Navi Mumbai, Maharashtra 400706',
-    contactEmail: 'support@tedxdypatil.com',
+    eventName: 'TEDxDYP Akurdi 2026',
+    theme: 'Meandering in the mosaic',
+    date: 'Tuesday, October 6, 2026',
+    time: '10:00 AM - 06:00 PM IST',
+    venue: 'DY Patil International University Campus, Akurdi, Pune, Maharashtra, India',
+    contactEmail: 'technical.tedxdyp@gmail.com',
 };
+
+const escapeHtml = (value) =>
+    String(value ?? '').replace(/[&<>"']/g, (character) => {
+        const entities = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        };
+
+        return entities[character];
+    });
 
 export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, totalAmount, pdfUrl, pdfBuffer, eventDetails = EVENT_DETAILS }) => {
     if (!resend) {
@@ -26,244 +39,141 @@ export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, tota
     }
 
     const formattedAmount = totalAmount ? `₹${totalAmount}` : 'N/A';
+    const ticketDownloadUrl =
+        ticketId && process.env.PUBLIC_API_URL
+            ? `${process.env.PUBLIC_API_URL.replace(/\/$/, '')}/api/ticket/${encodeURIComponent(ticketId)}/pdf`
+            : pdfUrl;
+    const safe = {
+        name: escapeHtml(name),
+        ticketId: escapeHtml(ticketId),
+        ticketCount: escapeHtml(ticketCount || 1),
+        formattedAmount: escapeHtml(formattedAmount),
+        eventName: escapeHtml(eventDetails.eventName),
+        theme: escapeHtml(eventDetails.theme),
+        date: escapeHtml(eventDetails.date),
+        venue: escapeHtml(eventDetails.venue),
+        contactEmail: escapeHtml(eventDetails.contactEmail),
+        pdfUrl: escapeHtml(ticketDownloadUrl),
+    };
 
     const htmlContent = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Your TEDx Ticket and Welcome</title>
-        <style>
-            body {
-                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                background-color: #0f0f11;
-                color: #e0e0e0;
-                margin: 0;
-                padding: 0;
-                -webkit-font-smoothing: antialiased;
-            }
-            .wrapper {
-                width: 100%;
-                background-color: #0f0f11;
-                padding: 40px 10px;
-            }
-            .container {
-                max-width: 600px;
-                margin: 0 auto;
-                background-color: #18181c;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-                border: 1px solid #2a2a30;
-            }
-            .header {
-                background: linear-gradient(135deg, #eb0028 0%, #a6001c 100%);
-                padding: 30px;
-                text-align: center;
-            }
-            .header h1 {
-                margin: 0;
-                color: #ffffff;
-                font-size: 28px;
-                font-weight: 800;
-                letter-spacing: -0.5px;
-            }
-            .header p {
-                margin: 5px 0 0 0;
-                color: rgba(255,255,255,0.85);
-                font-size: 14px;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            }
-            .content {
-                padding: 30px;
-            }
-            .greeting {
-                font-size: 20px;
-                font-weight: 600;
-                color: #ffffff;
-                margin-bottom: 15px;
-            }
-            .message {
-                font-size: 15px;
-                line-height: 1.6;
-                color: #b0b0b8;
-                margin-bottom: 25px;
-            }
-            .section-card {
-                background-color: #222228;
-                border-radius: 8px;
-                padding: 20px;
-                margin-bottom: 20px;
-                border-left: 4px solid #eb0028;
-            }
-            .section-title {
-                font-size: 14px;
-                font-weight: 700;
-                color: #eb0028;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                margin-bottom: 12px;
-            }
-            .info-grid {
-                display: table;
-                width: 100%;
-            }
-            .info-row {
-                display: table-row;
-            }
-            .info-label {
-                display: table-cell;
-                padding: 6px 0;
-                font-size: 13px;
-                color: #888894;
-                width: 35%;
-            }
-            .info-value {
-                display: table-cell;
-                padding: 6px 0;
-                font-size: 14px;
-                color: #ffffff;
-                font-weight: 600;
-            }
-            .badge {
-                display: inline-block;
-                background-color: #eb0028;
-                color: #ffffff;
-                font-size: 12px;
-                font-weight: 700;
-                padding: 4px 10px;
-                border-radius: 4px;
-                letter-spacing: 0.5px;
-            }
-            .btn-container {
-                text-align: center;
-                margin: 30px 0 15px 0;
-            }
-            .btn {
-                display: inline-block;
-                background-color: #eb0028;
-                color: #ffffff !important;
-                text-decoration: none;
-                font-weight: 700;
-                font-size: 15px;
-                padding: 14px 32px;
-                border-radius: 6px;
-                box-shadow: 0 4px 15px rgba(235, 0, 40, 0.4);
-            }
-            .attachment-note {
-                font-size: 12px;
-                color: #777782;
-                text-align: center;
-                margin-top: 10px;
-            }
-            .footer {
-                background-color: #121215;
-                padding: 20px 30px;
-                text-align: center;
-                font-size: 12px;
-                color: #666670;
-                border-top: 1px solid #222228;
-            }
-            .footer p {
-                margin: 4px 0;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="wrapper">
-            <div class="container">
-                <!-- Header -->
-                <div class="header">
-                    <h1>TEDx DYP Akurdi</span></h1>
-                    <p>${eventDetails.theme}</p>
-                </div>
-
-                <!-- Content -->
-                <div class="content">
-                    <div class="greeting">Hi ${name},</div>
-                    <div class="message">
-                        Congratulations! Your booking for <strong>${eventDetails.eventName}</strong> has been confirmed. Get ready for a day packed with inspirational talks, breakthrough ideas, and transformative networking.
-                    </div>
-
-                    <!-- Booking Info -->
-                    <div class="section-card">
-                        <div class="section-title">🎟️ Booking Information</div>
-                        <div class="info-grid">
-                            ${
-                                ticketId
-                                    ? `
-                            <div class="info-row">
-                                <div class="info-label">Ticket ID:</div>
-                                <div class="info-value"><span class="badge">${ticketId}</span></div>
-                            </div>
-                            `
-                                    : ''
-                            }
-                            <div class="info-row">
-                                <div class="info-label">Attendee Name:</div>
-                                <div class="info-value">${name}</div>
-                            </div>
-                            <div class="info-row">
-                                <div class="info-label">Ticket Quantity:</div>
-                                <div class="info-value">${ticketCount || 1} Ticket(s)</div>
-                            </div>
-                            <div class="info-row">
-                                <div class="info-label">Total Paid:</div>
-                                <div class="info-value">${formattedAmount}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Event Info -->
-                    <div class="section-card">
-                        <div class="section-title">📍 Event Details</div>
-                        <div class="info-grid">
-                            <div class="info-row">
-                                <div class="info-label">Event:</div>
-                                <div class="info-value">${eventDetails.eventName}</div>
-                            </div>
-                            <div class="info-row">
-                                <div class="info-label">Date:</div>
-                                <div class="info-value">${eventDetails.date}</div>
-                            </div>
-                            <div class="info-row">
-                                <div class="info-label">Time:</div>
-                                <div class="info-value">${eventDetails.time}</div>
-                            </div>
-                            <div class="info-row">
-                                <div class="info-label">Venue:</div>
-                                <div class="info-value">${eventDetails.venue}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    ${
-                        pdfUrl
-                            ? `
-                    <div class="btn-container">
-                        <a href="${pdfUrl}" class="btn" target="_blank">Download PDF Ticket</a>
-                    </div>
-                    `
-                            : ''
-                    }
-
-                    <div class="attachment-note">
-                        📎 Your PDF Ticket is also attached to this email. Please bring a digital or printed copy to the entry gate.
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div class="footer">
-                    <p>This event is independently organized under license from TED.</p>
-                    <p>For support or inquiries, contact us at ${eventDetails.contactEmail}</p>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>Your TEDx ticket is confirmed</title>
+    <style>
+        body { margin: 0; padding: 0; background: #eef1f5; }
+        table { border-collapse: collapse; }
+        @media only screen and (max-width: 620px) {
+            .email-shell { width: 100% !important; }
+            .email-pad { padding-left: 22px !important; padding-right: 22px !important; }
+            .event-value { width: 58% !important; }
+        }
+    </style>
+</head>
+<body style="margin:0;padding:0;background-color:#eef1f5;font-family:Arial,Helvetica,sans-serif;color:#162235;-webkit-text-size-adjust:100%;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#eef1f5;">
+        <tr>
+            <td align="center" style="padding:30px 12px;">
+                <table role="presentation" class="email-shell" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #dce1e8;">
+                    <tr>
+                        <td style="height:5px;background-color:#e62b1e;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td class="email-pad" style="padding:28px 36px 30px;background-color:#101318;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td style="font-size:25px;line-height:30px;font-weight:800;color:#ffffff;">
+                                        <span style="color:#e62b1e;">TEDx</span> DYP Akurdi
+                                    </td>
+                                    <td align="right" style="font-size:10px;line-height:14px;font-weight:700;letter-spacing:1.5px;color:#aab2bf;">TICKET CONFIRMED</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" style="padding-top:12px;font-size:13px;line-height:20px;color:#c3cad4;">${safe.theme}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="email-pad" style="padding:30px 36px 12px;">
+                            <div style="font-size:23px;line-height:29px;font-weight:700;color:#162235;">Your place is confirmed, ${safe.name}.</div>
+                            <div style="padding-top:9px;font-size:14px;line-height:22px;color:#536174;">Your booking for <strong style="color:#162235;">${safe.eventName}</strong> is confirmed. Keep your ticket ready for entry.</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="email-pad" style="padding:16px 36px 10px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #dce1e8;background-color:#ffffff;">
+                                <tr>
+                                    <td style="width:4px;background-color:#e62b1e;font-size:0;line-height:0;">&nbsp;</td>
+                                    <td style="padding:20px 22px 18px;">
+                                        <div style="font-size:10px;line-height:14px;font-weight:700;letter-spacing:1.8px;color:#7a8798;">OFFICIAL ENTRY PASS</div>
+                                        ${ticketId ? `<div style="padding-top:7px;font-family:'Courier New',monospace;font-size:19px;line-height:25px;font-weight:700;color:#e62b1e;">${safe.ticketId}</div>` : ''}
+                                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:17px;border-top:1px solid #e6eaf0;">
+                                            <tr>
+                                                <td style="width:50%;padding:14px 12px 4px 0;vertical-align:top;">
+                                                    <div style="font-size:10px;line-height:14px;font-weight:700;letter-spacing:1px;color:#7a8798;">ATTENDEE</div>
+                                                    <div style="padding-top:5px;font-size:14px;line-height:20px;font-weight:700;color:#162235;">${safe.name}</div>
+                                                </td>
+                                                <td style="width:50%;padding:14px 0 4px 12px;vertical-align:top;">
+                                                    <div style="font-size:10px;line-height:14px;font-weight:700;letter-spacing:1px;color:#7a8798;">TICKETS</div>
+                                                    <div style="padding-top:5px;font-size:14px;line-height:20px;font-weight:700;color:#162235;">${safe.ticketCount}</div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" style="padding-top:12px;">
+                                                    <div style="height:1px;background-color:#e6eaf0;font-size:0;line-height:0;">&nbsp;</div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" style="padding-top:12px;">
+                                                    <div style="font-size:10px;line-height:14px;font-weight:700;letter-spacing:1px;color:#7a8798;">TOTAL PAID</div>
+                                                    <div style="padding-top:5px;font-size:16px;line-height:22px;font-weight:700;color:#162235;">${safe.formattedAmount}</div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="email-pad" style="padding:18px 36px 24px;">
+                            <div style="padding-bottom:11px;font-size:10px;line-height:14px;font-weight:700;letter-spacing:1.8px;color:#e62b1e;">EVENT DETAILS</div>
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-top:1px solid #dce1e8;">
+                                <tr>
+                                    <td style="width:34%;padding:10px 12px 10px 0;border-bottom:1px solid #e6eaf0;font-size:12px;line-height:18px;color:#7a8798;vertical-align:top;">Event</td>
+                                    <td class="event-value" style="width:66%;padding:10px 0;border-bottom:1px solid #e6eaf0;font-size:13px;line-height:19px;font-weight:700;color:#162235;vertical-align:top;">${safe.eventName}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:10px 12px 10px 0;border-bottom:1px solid #e6eaf0;font-size:12px;line-height:18px;color:#7a8798;vertical-align:top;">Date</td>
+                                    <td class="event-value" style="padding:10px 0;border-bottom:1px solid #e6eaf0;font-size:13px;line-height:19px;font-weight:700;color:#162235;vertical-align:top;">${safe.date}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:10px 12px 0 0;font-size:12px;line-height:18px;color:#7a8798;vertical-align:top;">Venue</td>
+                                    <td class="event-value" style="padding:10px 0 0;font-size:13px;line-height:19px;font-weight:700;color:#162235;vertical-align:top;">${safe.venue}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    ${ticketDownloadUrl ? `<tr><td align="center" class="email-pad" style="padding:8px 36px 8px;"><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td align="center" bgcolor="#e62b1e" style="background-color:#e62b1e;"><a href="${safe.pdfUrl}" target="_blank" style="display:inline-block;padding:15px 28px;font-size:13px;line-height:18px;font-weight:700;letter-spacing:0.8px;color:#ffffff;text-decoration:none;">DOWNLOAD YOUR TICKET</a></td></tr></table></td></tr>` : ''}
+                    <tr>
+                        <td class="email-pad" align="center" style="padding:12px 36px 28px;font-size:12px;line-height:19px;color:#7a8798;">Your PDF is attached to this email too. Please bring a digital or printed copy to the entry gate.</td>
+                    </tr>
+                    <tr>
+                        <td class="email-pad" style="padding:20px 36px;background-color:#101318;border-top:3px solid #e62b1e;">
+                            <div style="font-size:11px;line-height:18px;color:#c3cad4;">This event is independently organized under license from TED.</div>
+                            <div style="padding-top:4px;font-size:11px;line-height:18px;color:#aab2bf;">Questions? <a href="mailto:${safe.contactEmail}" style="color:#ffffff;text-decoration:underline;">${safe.contactEmail}</a></div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
 
     const { data, error } = await resend.emails.send({
         from: process.env.EMAIL_FROM || 'TEDx Events <tickets@resend.dev>',

@@ -1,10 +1,32 @@
+const serializeMeta = (value) => {
+    if (value instanceof Error) {
+        return {
+            name: value.name,
+            message: value.message,
+            stack: value.stack,
+            ...(value.code !== undefined ? { code: value.code } : {}),
+            ...(value.codeName !== undefined ? { codeName: value.codeName } : {}),
+        };
+    }
+
+    if (Array.isArray(value)) {
+        return value.map(serializeMeta);
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, serializeMeta(item)]));
+    }
+
+    return value;
+};
+
 const formatMessage = (level, message, meta) => {
     const timestamp = new Date().toISOString();
     if (!meta) {
         return `[${timestamp}] ${level}: ${message}`;
     }
 
-    return `[${timestamp}] ${level}: ${message} ${typeof meta === 'string' ? meta : JSON.stringify(meta)}`;
+    return `[${timestamp}] ${level}: ${message} ${typeof meta === 'string' ? meta : JSON.stringify(serializeMeta(meta))}`;
 };
 
 const logger = {
