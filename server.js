@@ -29,7 +29,27 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Security & logging
 app.use(helmet());
 app.use(morgan('dev'));
-app.use(cors({ origin: process.env.FRONTEND_URL || true }));
+
+const allowedOrigins = [
+    process.env.FRONTEND_URL, // Your primary production frontend
+    'https://tedxdypakurdi.in',
+    'https://www.tedxdypakurdi.in',
+    'http://localhost:3000',
+].filter(Boolean);
+app.use(
+    cors({
+        origin: function (origin, callback) {
+            if (!origin) return callback(null, true);
+
+            if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(true)) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        },
+        credentials: true, // Optional: allow cookies/headers if needed
+    }),
+);
 
 // Rate limiter
 const rateLimit = createRateLimiter();
