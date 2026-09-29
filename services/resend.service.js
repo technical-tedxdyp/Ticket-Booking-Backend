@@ -39,10 +39,6 @@ export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, tota
     }
 
     const formattedAmount = totalAmount ? `₹${totalAmount}` : 'N/A';
-    const ticketDownloadUrl =
-        ticketId && process.env.PUBLIC_API_URL
-            ? `${process.env.PUBLIC_API_URL.replace(/\/$/, '')}/api/ticket/${encodeURIComponent(ticketId)}/pdf`
-            : pdfUrl;
     const safe = {
         name: escapeHtml(name),
         ticketId: escapeHtml(ticketId),
@@ -53,7 +49,6 @@ export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, tota
         date: escapeHtml(eventDetails.date),
         venue: escapeHtml(eventDetails.venue),
         contactEmail: escapeHtml(eventDetails.contactEmail),
-        pdfUrl: escapeHtml(ticketDownloadUrl),
     };
 
     const htmlContent = `
@@ -158,9 +153,8 @@ export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, tota
                             </table>
                         </td>
                     </tr>
-                    ${ticketDownloadUrl ? `<tr><td align="center" class="email-pad" style="padding:8px 36px 8px;"><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td align="center" bgcolor="#e62b1e" style="background-color:#e62b1e;"><a href="${safe.pdfUrl}" target="_blank" style="display:inline-block;padding:15px 28px;font-size:13px;line-height:18px;font-weight:700;letter-spacing:0.8px;color:#ffffff;text-decoration:none;">DOWNLOAD YOUR TICKET</a></td></tr></table></td></tr>` : ''}
                     <tr>
-                        <td class="email-pad" align="center" style="padding:12px 36px 28px;font-size:12px;line-height:19px;color:#7a8798;">Your PDF is attached to this email too. Please bring a digital or printed copy to the entry gate.</td>
+                        <td class="email-pad" align="center" style="padding:16px 36px 28px;font-size:13px;line-height:20px;color:#536174;">Your ticket PDF is attached below. Download the attached file and keep it ready to show at the entry gate.</td>
                     </tr>
                     <tr>
                         <td class="email-pad" style="padding:20px 36px;background-color:#101318;border-top:3px solid #e62b1e;">
