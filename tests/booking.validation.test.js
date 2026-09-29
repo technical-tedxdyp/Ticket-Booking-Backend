@@ -27,3 +27,15 @@ test('bookingSchema rejects all-empty session selections', () => {
 
     assert.throws(() => bookingSchema.parse(invalidPayload), /Select at least one session/);
 });
+
+test('bookingSchema rejects predefined session aliases', () => {
+    const payload = {
+        name: 'Abaan Ansari',
+        email: 'abaanansari1427@gmail.com',
+        phone: '8999226599',
+        selectedSessions: ['morning'],
+        ticketCount: 1,
+    };
+
+    assert.throws(() => bookingSchema.parse(payload), /Session IDs must be valid MongoDB ObjectIds/);
+});

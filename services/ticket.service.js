@@ -4,24 +4,21 @@ import { generateTicketId } from '../utils/generateTicketId.js';
 import { generateQRCode } from './qr.service.js';
 import { generateTicketPDF } from './pdf.service.js';
 import Booking from '../models/booking.model.js';
-import { getSessionsByIds } from '../config/sessions.js';
+import mongoose from 'mongoose';
+import Session from '../models/session.model.js';
 
-const buildTicketData = (booking, ticketId) => {
-    const sessions = [];
+const getBookingSessions = async (selectedSessions = []) => {
+    const sessionIds = selectedSessions.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const foundSessions = await Session.find({ _id: { $in: sessionIds } })
+        .populate('event')
+        .lean();
+    const sessionsById = new Map(foundSessions.map((session) => [session._id.toString(), session]));
+    return sessionIds.map((id) => sessionsById.get(id)).filter(Boolean);
+};
 
-    if (Array.isArray(booking.selectedSessions)) {
-        const staticSessions = getSessionsByIds(booking.selectedSessions);
-        for (const s of staticSessions) {
-            sessions.push({
-                title: s.title,
-                speakers: s.speakers || [],
-                day: s.day ?? 1,
-                timeLabel: s.timeLabel,
-                startTime: s.startTime ?? null,
-                endTime: s.endTime ?? null,
-            });
-        }
-    }
+const buildTicketData = async (booking, ticketId) => {
+    const sessionDocs = await getBookingSessions(booking.selectedSessions);
+    const event = sessionDocs.find((session) => session.event && typeof session.event === 'object')?.event;
 
     return {
         ticketId,
@@ -29,8 +26,16 @@ const buildTicketData = (booking, ticketId) => {
         email: booking.email ?? null,
         ticketCount: booking.ticketCount ?? null,
         totalAmount: booking.totalAmount ?? null,
-        eventTitle: 'TEDx DYP Akurdi 2026',
-        sessions,
+        eventTitle: event?.title ?? null,
+        eventStart: event?.startDate ?? null,
+        eventEnd: event?.endDate ?? null,
+        sessions: sessionDocs.map((session) => ({
+            title: session.title,
+            speakers: session.speakers || [],
+            day: session.day,
+            startTime: session.startTime,
+            endTime: session.endTime,
+        })),
     };
 };
 
@@ -48,7 +53,7 @@ export const generateTicket = async (booking) => {
             ticketId: booking.ticketId,
             qrCodeBuffer: null,
             pdfBuffer: null,
-            ticketData: buildTicketData(booking, booking.ticketId),
+            ticketData: await buildTicketData(booking, booking.ticketId),
             alreadyGenerated: true,
         };
     }
@@ -57,7 +62,7 @@ export const generateTicket = async (booking) => {
 
     const qrCodeBuffer = await generateQRCode(ticketId);
 
-    const ticketData = buildTicketData(booking, ticketId);
+    const ticketData = await buildTicketData(booking, ticketId);
 
     const pdfBuffer = await generateTicketPDF(ticketData, qrCodeBuffer);
 
@@ -86,7 +91,7 @@ export const getTicketById = async (ticketId) => {
         throw new ApiError(StatusCodes.NOT_FOUND, 'Ticket has not been generated yet.');
     }
 
-    const sessions = getSessionsByIds(booking.selectedSessions);
+    const sessions = await getBookingSessions(booking.selectedSessions);
 
     return {
         ticketId: booking.ticketId,

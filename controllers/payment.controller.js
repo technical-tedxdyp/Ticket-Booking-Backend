@@ -244,7 +244,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
         await convertSeats(updatedBooking, session);
 
         // 8. Process booking completion (generate ticket, upload, send email)
-        // Note: ticket.service.js will handle session data via getSessionsByIds
+        // Ticket generation loads session and event details from MongoDB.
         await processBookingCompletion(updatedBooking);
 
         await session.commitTransaction();
@@ -448,7 +448,7 @@ const handlePaymentCaptured = async (payload) => {
         await convertSeats(updatedBooking, session);
 
         // Process booking completion (generate ticket, upload, send email)
-        // Note: ticket.service.js will handle session data via getSessionsByIds
+        // Ticket generation loads session and event details from MongoDB.
         await processBookingCompletion(updatedBooking);
 
         await session.commitTransaction();

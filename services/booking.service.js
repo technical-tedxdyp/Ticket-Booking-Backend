@@ -4,7 +4,6 @@ import { StatusCodes } from 'http-status-codes';
 import Booking from '../models/booking.model.js';
 import Session from '../models/session.model.js';
 import { BOOKING_STATUS, MAX_TICKETS_PER_USER } from '../utils/constants.js';
-import { getSessionsByIds, calculateSessionsTotalPrice, getSessionById } from '../config/sessions.js';
 import { redis } from '../providers/redis.js';
 
 // --- Email-Scoped Lock Mechanism (Redis Distributed Lock + In-Memory Queue) ---
@@ -97,27 +96,18 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
             throw new ApiError(StatusCodes.BAD_REQUEST, 'Duplicate sessions are not allowed.');
         }
 
-        let validSessions = getSessionsByIds(uniqueSessionIds);
-        let perTicketPrice = 0;
-
-        if (validSessions.length === uniqueSessionIds.length) {
-            perTicketPrice = calculateSessionsTotalPrice(uniqueSessionIds);
-        } else {
-            // Fallback for MongoDB ObjectId session lookups
-            const isObjectIds = uniqueSessionIds.every((id) => mongoose.Types.ObjectId.isValid(id));
-            if (isObjectIds) {
-                const dbSessions = await Session.find({
-                    _id: { $in: uniqueSessionIds },
-                    isActive: true,
-                });
-                if (dbSessions.length !== uniqueSessionIds.length) {
-                    throw new ApiError(StatusCodes.BAD_REQUEST, 'One or more selected sessions are invalid.');
-                }
-                perTicketPrice = dbSessions.reduce((sum, s) => sum + s.price, 0);
-            } else {
-                throw new ApiError(StatusCodes.BAD_REQUEST, 'One or more selected sessions are invalid.');
-            }
+        if (!uniqueSessionIds.every((id) => mongoose.Types.ObjectId.isValid(id))) {
+            throw new ApiError(StatusCodes.BAD_REQUEST, 'One or more selected sessions are invalid.');
         }
+
+        const validSessions = await Session.find({
+            _id: { $in: uniqueSessionIds },
+            isActive: true,
+        });
+        if (validSessions.length !== uniqueSessionIds.length) {
+            throw new ApiError(StatusCodes.BAD_REQUEST, 'One or more selected sessions are invalid.');
+        }
+        const perTicketPrice = validSessions.reduce((sum, session) => sum + session.price, 0);
 
         // Ticket Limit: Count active PENDING, PAYMENT_SUCCESS, TICKET_GENERATED, CHECKED_IN
         // Email is the ONLY identifier. Phone number must NOT be used.
@@ -152,41 +142,28 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
 
         try {
             for (const sId of uniqueSessionIds) {
-                let sessionDoc;
-                if (mongoose.Types.ObjectId.isValid(sId)) {
-                    sessionDoc = await Session.findOne({ _id: sId, isActive: true });
-                } else {
-                    const staticSess = getSessionById(sId);
-                    const searchTitle = staticSess ? staticSess.title : sId;
-                    sessionDoc = await Session.findOne({
-                        title: { $regex: new RegExp(`^${searchTitle}`, 'i') },
+                const sessionDoc = validSessions.find((session) => session._id.toString() === sId);
+                const updatedSession = await Session.findOneAndUpdate(
+                    {
+                        _id: sessionDoc._id,
                         isActive: true,
-                    }).sort({ createdAt: -1 });
+                        $expr: {
+                            $gte: [{ $subtract: ['$totalSeats', { $add: ['$soldSeats', '$reservedSeats'] }] }, ticketCount],
+                        },
+                    },
+                    {
+                        $inc: { reservedSeats: ticketCount },
+                    },
+                    {
+                        returnDocument: 'after',
+                    },
+                );
+
+                if (!updatedSession) {
+                    throw new ApiError(StatusCodes.BAD_REQUEST, `Not enough seats available for ${sessionDoc.title}.`);
                 }
 
-                if (sessionDoc) {
-                    const updatedSession = await Session.findOneAndUpdate(
-                        {
-                            _id: sessionDoc._id,
-                            isActive: true,
-                            $expr: {
-                                $gte: [{ $subtract: ['$totalSeats', { $add: ['$soldSeats', '$reservedSeats'] }] }, ticketCount],
-                            },
-                        },
-                        {
-                            $inc: { reservedSeats: ticketCount },
-                        },
-                        {
-                            returnDocument: 'after',
-                        },
-                    );
-
-                    if (!updatedSession) {
-                        throw new ApiError(StatusCodes.BAD_REQUEST, `Not enough seats available for ${sessionDoc.title}.`);
-                    }
-
-                    successfullyReservedDbIds.push(sessionDoc._id);
-                }
+                successfullyReservedDbIds.push(sessionDoc._id);
             }
 
             // Calculate Total Price
@@ -256,15 +233,9 @@ export const handlePaymentFailure = async (bookingId, reason = 'Payment failed')
 
     // Release reservedSeats for all selected sessions
     if (booking.selectedSessions && booking.selectedSessions.length > 0 && booking.ticketCount > 0) {
-        const isObjectIds = booking.selectedSessions.every((id) => mongoose.Types.ObjectId.isValid(id));
-        if (isObjectIds) {
-            await Session.updateMany({ _id: { $in: booking.selectedSessions } }, { $inc: { reservedSeats: -booking.ticketCount } });
-        } else {
-            for (const sId of booking.selectedSessions) {
-                const staticSess = getSessionById(sId);
-                const searchTitle = staticSess ? staticSess.title : sId;
-                await Session.updateOne({ title: { $regex: new RegExp(`^${searchTitle}`, 'i') } }, { $inc: { reservedSeats: -booking.ticketCount } });
-            }
+        const sessionIds = booking.selectedSessions.filter((id) => mongoose.Types.ObjectId.isValid(id));
+        if (sessionIds.length > 0) {
+            await Session.updateMany({ _id: { $in: sessionIds } }, { $inc: { reservedSeats: -booking.ticketCount } });
         }
     }
 
@@ -302,15 +273,9 @@ export const expireBooking = async (bookingId) => {
 
     // Release reservedSeats for all selected sessions
     if (booking.selectedSessions && booking.selectedSessions.length > 0 && booking.ticketCount > 0) {
-        const isObjectIds = booking.selectedSessions.every((id) => mongoose.Types.ObjectId.isValid(id));
-        if (isObjectIds) {
-            await Session.updateMany({ _id: { $in: booking.selectedSessions } }, { $inc: { reservedSeats: -booking.ticketCount } });
-        } else {
-            for (const sId of booking.selectedSessions) {
-                const staticSess = getSessionById(sId);
-                const searchTitle = staticSess ? staticSess.title : sId;
-                await Session.updateOne({ title: { $regex: new RegExp(`^${searchTitle}`, 'i') } }, { $inc: { reservedSeats: -booking.ticketCount } });
-            }
+        const sessionIds = booking.selectedSessions.filter((id) => mongoose.Types.ObjectId.isValid(id));
+        if (sessionIds.length > 0) {
+            await Session.updateMany({ _id: { $in: sessionIds } }, { $inc: { reservedSeats: -booking.ticketCount } });
         }
     }
 
@@ -365,19 +330,12 @@ export const getBookingById = async (bookingId) => {
     // Map selected sessions to rich session details
     let sessionDetails = [];
     if (Array.isArray(booking.selectedSessions)) {
-        const isObjectIds = booking.selectedSessions.every((id) => mongoose.Types.ObjectId.isValid(id));
-        if (isObjectIds) {
-            sessionDetails = await Session.find({ _id: { $in: booking.selectedSessions } }).select(
-                '_id title day startTime endTime price totalSeats reservedSeats soldSeats speakers isActive',
-            );
-        } else {
-            sessionDetails = getSessionsByIds(booking.selectedSessions);
-            if (sessionDetails.length === 0) {
-                sessionDetails = await Session.find({
-                    title: { $in: booking.selectedSessions.map((s) => new RegExp(s, 'i')) },
-                }).select('_id title day startTime endTime price totalSeats reservedSeats soldSeats speakers isActive');
-            }
-        }
+        const sessionIds = booking.selectedSessions.filter((id) => mongoose.Types.ObjectId.isValid(id));
+        const foundSessions = await Session.find({ _id: { $in: sessionIds } }).select(
+            '_id title day startTime endTime price totalSeats reservedSeats soldSeats speakers isActive',
+        );
+        const sessionsById = new Map(foundSessions.map((session) => [session._id.toString(), session]));
+        sessionDetails = sessionIds.map((id) => sessionsById.get(id)).filter(Boolean);
     }
 
     return {
@@ -388,7 +346,7 @@ export const getBookingById = async (bookingId) => {
         ticketCount: booking.ticketCount,
         totalAmount: booking.totalAmount,
         bookingStatus: booking.bookingStatus,
-        selectedSessions: sessionDetails.length > 0 ? sessionDetails : booking.selectedSessions,
+        selectedSessions: sessionDetails,
         createdAt: booking.createdAt,
         expiresAt: booking.reservationExpiresAt,
         ticketId: booking.ticketId || null,

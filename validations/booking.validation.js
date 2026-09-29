@@ -3,8 +3,6 @@ import ApiError from '../utils/ApiError.js';
 import { StatusCodes } from 'http-status-codes';
 import { MAX_TICKETS_PER_USER } from '../utils/constants.js';
 
-import { VALID_SESSION_IDS } from '../config/sessions.js';
-
 const normalizeSelectedSessions = (value) => {
     if (!Array.isArray(value)) return value;
     return value.map((session) => String(session ?? '').trim()).filter((session) => session.length > 0);
@@ -22,12 +20,9 @@ export const bookingSchema = z.object({
         z
             .array(z.string().trim())
             .min(1, 'Select at least one session.')
-            .refine(
-                (sessions) =>
-                    Array.isArray(sessions) &&
-                    sessions.every((s) => VALID_SESSION_IDS.includes(String(s).toLowerCase()) || /^[0-9a-fA-F]{24}$/.test(String(s))),
-                { message: `Invalid session selected. Valid sessions are: ${VALID_SESSION_IDS.join(', ')}` },
-            )
+            .refine((sessions) => Array.isArray(sessions) && sessions.every((sessionId) => /^[0-9a-fA-F]{24}$/.test(sessionId)), {
+                message: 'Session IDs must be valid MongoDB ObjectIds.',
+            })
             .refine(
                 (sessions) => {
                     if (!Array.isArray(sessions)) return false;

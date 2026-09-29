@@ -60,7 +60,6 @@ const seed = async () => {
         console.log('\n🎉 Database seeded successfully.');
         console.log('Use these values in the booking request:');
         console.log(`selectedSessions: ["${createdSessions[0]._id.toString()}", "${createdSessions[1]._id.toString()}"]`);
-        console.log('Or use static IDs: ["morning", "evening"]');
 
         process.exit(0);
     } catch (error) {
