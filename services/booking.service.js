@@ -5,6 +5,7 @@ import Booking from '../models/booking.model.js';
 import Session from '../models/session.model.js';
 import { BOOKING_STATUS, MAX_TICKETS_PER_USER } from '../utils/constants.js';
 import { redis } from '../providers/redis.js';
+import { collectSeatSessionIds, getBookingSeatSessionIds, hasSelectedIncludedSession } from './session-capacity.service.js';
 
 // --- Email-Scoped Lock Mechanism (Redis Distributed Lock + In-Memory Queue) ---
 const localEmailLocks = new Map();
@@ -100,14 +101,23 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
             throw new ApiError(StatusCodes.BAD_REQUEST, 'One or more selected sessions are invalid.');
         }
 
-        const validSessions = await Session.find({
+        const selectedSessionDocs = await Session.find({
             _id: { $in: uniqueSessionIds },
             isActive: true,
-        });
-        if (validSessions.length !== uniqueSessionIds.length) {
+        }).populate('includedSessions');
+        if (selectedSessionDocs.length !== uniqueSessionIds.length) {
             throw new ApiError(StatusCodes.BAD_REQUEST, 'One or more selected sessions are invalid.');
         }
-        const perTicketPrice = validSessions.reduce((sum, session) => sum + session.price, 0);
+        if (hasSelectedIncludedSession(selectedSessionDocs)) {
+            throw new ApiError(StatusCodes.BAD_REQUEST, 'A session cannot be booked together with a session it includes.');
+        }
+        const perTicketPrice = selectedSessionDocs.reduce((sum, session) => sum + session.price, 0);
+
+        const seatSessionIds = collectSeatSessionIds(selectedSessionDocs);
+        const seatSessions = await Session.find({ _id: { $in: seatSessionIds }, isActive: true }).sort({ _id: 1 });
+        if (seatSessions.length !== seatSessionIds.length) {
+            throw new ApiError(StatusCodes.BAD_REQUEST, 'One or more included sessions are unavailable.');
+        }
 
         // Ticket Limit: Count active PENDING, PAYMENT_SUCCESS, TICKET_GENERATED, CHECKED_IN
         // Email is the ONLY identifier. Phone number must NOT be used.
@@ -141,8 +151,7 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
         const successfullyReservedDbIds = [];
 
         try {
-            for (const sId of uniqueSessionIds) {
-                const sessionDoc = validSessions.find((session) => session._id.toString() === sId);
+            for (const sessionDoc of seatSessions) {
                 const updatedSession = await Session.findOneAndUpdate(
                     {
                         _id: sessionDoc._id,
@@ -175,6 +184,7 @@ export const createPendingBooking = async ({ name, email, phone, selectedSession
                 email: normalizedEmail,
                 phone,
                 selectedSessions: uniqueSessionIds,
+                seatSessionIds,
                 ticketCount,
                 totalAmount,
                 bookingStatus: BOOKING_STATUS.PENDING,
@@ -233,7 +243,7 @@ export const handlePaymentFailure = async (bookingId, reason = 'Payment failed')
 
     // Release reservedSeats for all selected sessions
     if (booking.selectedSessions && booking.selectedSessions.length > 0 && booking.ticketCount > 0) {
-        const sessionIds = booking.selectedSessions.filter((id) => mongoose.Types.ObjectId.isValid(id));
+        const sessionIds = getBookingSeatSessionIds(booking).filter((id) => mongoose.Types.ObjectId.isValid(id));
         if (sessionIds.length > 0) {
             await Session.updateMany({ _id: { $in: sessionIds } }, { $inc: { reservedSeats: -booking.ticketCount } });
         }
@@ -273,7 +283,7 @@ export const expireBooking = async (bookingId) => {
 
     // Release reservedSeats for all selected sessions
     if (booking.selectedSessions && booking.selectedSessions.length > 0 && booking.ticketCount > 0) {
-        const sessionIds = booking.selectedSessions.filter((id) => mongoose.Types.ObjectId.isValid(id));
+        const sessionIds = getBookingSeatSessionIds(booking).filter((id) => mongoose.Types.ObjectId.isValid(id));
         if (sessionIds.length > 0) {
             await Session.updateMany({ _id: { $in: sessionIds } }, { $inc: { reservedSeats: -booking.ticketCount } });
         }

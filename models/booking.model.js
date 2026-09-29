@@ -27,6 +27,13 @@ const bookingSchema = new mongoose.Schema(
             },
         ],
 
+        seatSessionIds: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Session',
+            },
+        ],
+
         ticketCount: {
             type: Number,
             required: true,

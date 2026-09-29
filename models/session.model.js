@@ -21,6 +21,13 @@ const sessionSchema = new mongoose.Schema(
             },
         ],
 
+        includedSessions: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Session',
+            },
+        ],
+
         day: {
             type: Number,
             enum: [1, 2],

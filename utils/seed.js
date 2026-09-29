@@ -50,16 +50,30 @@ const seed = async () => {
         ];
 
         const createdSessions = await Session.insertMany(sessions);
+        const fullDaySession = await Session.create({
+            event: event._id,
+            title: 'Full Day Session',
+            speakers: [...new Set(createdSessions.flatMap((session) => session.speakers))],
+            day: 1,
+            startTime: new Date(Math.min(...createdSessions.map((session) => session.startTime.getTime()))),
+            endTime: new Date(Math.max(...createdSessions.map((session) => session.endTime.getTime()))),
+            price: createdSessions.reduce((sum, session) => sum + session.price, 0),
+            totalSeats: Math.min(...createdSessions.map((session) => session.totalSeats)),
+            includedSessions: createdSessions.map((session) => session._id),
+            isActive: true,
+        });
 
         console.log('✅ Event created:', event._id.toString());
         console.log('✅ Sessions created:');
         createdSessions.forEach((session) => {
             console.log(`   - ${session.title}: ${session._id.toString()}`);
         });
+        console.log(`   - ${fullDaySession.title}: ${fullDaySession._id.toString()}`);
 
         console.log('\n🎉 Database seeded successfully.');
         console.log('Use these values in the booking request:');
         console.log(`selectedSessions: ["${createdSessions[0]._id.toString()}", "${createdSessions[1]._id.toString()}"]`);
+        console.log(`fullDaySession: "${fullDaySession._id.toString()}"`);
 
         process.exit(0);
     } catch (error) {

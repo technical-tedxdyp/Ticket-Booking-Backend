@@ -11,6 +11,7 @@ import { sendTicketEmail } from '../services/resend.service.js';
 import { uploadTicketPDF } from '../services/cloudinary.service.js';
 import { verifyPaymentSignature, verifyWebhookSignature } from '../providers/razorpay.js';
 import logger from '../utils/logger.js';
+import { getBookingSeatSessionIds } from '../services/session-capacity.service.js';
 
 export const isWriteConflictError = (error) => {
     if (!error) return false;
@@ -75,10 +76,11 @@ export const processBookingCompletion = async (booking) => {
  * Convert reserved seats to sold seats (Seat Conversion)
  */
 const convertSeats = async (booking, session = null) => {
-    const { selectedSessions, ticketCount } = booking;
+    const { ticketCount } = booking;
+    const sessionIds = getBookingSeatSessionIds(booking);
     const options = session ? { session } : {};
 
-    for (const sessionId of selectedSessions) {
+    for (const sessionId of sessionIds) {
         const result = await Session.findByIdAndUpdate(
             sessionId,
             {
@@ -102,10 +104,11 @@ const convertSeats = async (booking, session = null) => {
  * Release reserved seats (Seat Release)
  */
 const releaseSeats = async (booking, session = null) => {
-    const { selectedSessions, ticketCount } = booking;
+    const { ticketCount } = booking;
+    const sessionIds = getBookingSeatSessionIds(booking);
     const options = session ? { session } : {};
 
-    for (const sessionId of selectedSessions) {
+    for (const sessionId of sessionIds) {
         const result = await Session.findByIdAndUpdate(
             sessionId,
             {
