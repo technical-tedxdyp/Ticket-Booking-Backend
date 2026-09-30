@@ -84,17 +84,7 @@ const bookingSchema = new mongoose.Schema(
     },
 );
 
-bookingSchema.index(
-    {
-        reservationExpiresAt: 1,
-    },
-    {
-        expireAfterSeconds: 0,
-        partialFilterExpression: {
-            bookingStatus: BOOKING_STATUS.PENDING,
-        },
-    },
-);
+bookingSchema.index({ bookingStatus: 1, reservationExpiresAt: 1 });
 
 const Booking = mongoose.models.Booking || mongoose.model('Booking', bookingSchema);
 

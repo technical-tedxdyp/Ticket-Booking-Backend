@@ -218,39 +218,37 @@ export const handlePaymentFailure = async (bookingId, reason = 'Payment failed')
         throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid booking ID format.');
     }
 
-    // Atomically find and update ONLY if bookingStatus is PENDING (Idempotent)
-    const booking = await Booking.findOneAndUpdate(
-        {
-            _id: bookingId,
-            bookingStatus: BOOKING_STATUS.PENDING,
-        },
-        {
-            $set: {
-                bookingStatus: BOOKING_STATUS.PAYMENT_FAILED,
-            },
-        },
-        { returnDocument: 'before' }, // returns document prior to update
-    );
+    const session = await mongoose.startSession();
+    try {
+        session.startTransaction();
+        const booking = await Booking.findOneAndUpdate(
+            { _id: bookingId, bookingStatus: BOOKING_STATUS.PENDING },
+            { $set: { bookingStatus: BOOKING_STATUS.PAYMENT_FAILED } },
+            { session, returnDocument: 'before' },
+        );
 
-    if (!booking) {
-        const existing = await Booking.findById(bookingId);
-        if (!existing) {
-            throw new ApiError(StatusCodes.NOT_FOUND, 'Booking not found.');
+        if (!booking) {
+            await session.abortTransaction();
+            const existing = await Booking.findById(bookingId);
+            if (!existing) {
+                throw new ApiError(StatusCodes.NOT_FOUND, 'Booking not found.');
+            }
+            return { booking: existing, seatsReleased: false };
         }
-        // If already PAYMENT_FAILED, EXPIRED or another state, do not release seats again (idempotent)
-        return { booking: existing, seatsReleased: false };
-    }
 
-    // Release reservedSeats for all selected sessions
-    if (booking.selectedSessions && booking.selectedSessions.length > 0 && booking.ticketCount > 0) {
         const sessionIds = getBookingSeatSessionIds(booking).filter((id) => mongoose.Types.ObjectId.isValid(id));
-        if (sessionIds.length > 0) {
-            await Session.updateMany({ _id: { $in: sessionIds } }, { $inc: { reservedSeats: -booking.ticketCount } });
+        if (sessionIds.length > 0 && booking.ticketCount > 0) {
+            await Session.updateMany({ _id: { $in: sessionIds } }, { $inc: { reservedSeats: -booking.ticketCount } }, { session });
         }
-    }
 
-    const updatedBooking = await Booking.findById(bookingId);
-    return { booking: updatedBooking, seatsReleased: true };
+        await session.commitTransaction();
+        return { booking: await Booking.findById(bookingId), seatsReleased: true };
+    } catch (error) {
+        if (session.inTransaction()) await session.abortTransaction();
+        throw error;
+    } finally {
+        await session.endSession();
+    }
 };
 
 export const expireBooking = async (bookingId) => {
@@ -258,39 +256,37 @@ export const expireBooking = async (bookingId) => {
         throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid booking ID format.');
     }
 
-    // Atomically transition ONLY if currently PENDING (Idempotent)
-    const booking = await Booking.findOneAndUpdate(
-        {
-            _id: bookingId,
-            bookingStatus: BOOKING_STATUS.PENDING,
-        },
-        {
-            $set: {
-                bookingStatus: BOOKING_STATUS.EXPIRED,
-            },
-        },
-        { returnDocument: 'before' }, // returns document prior to update
-    );
+    const session = await mongoose.startSession();
+    try {
+        session.startTransaction();
+        const booking = await Booking.findOneAndUpdate(
+            { _id: bookingId, bookingStatus: BOOKING_STATUS.PENDING },
+            { $set: { bookingStatus: BOOKING_STATUS.EXPIRED } },
+            { session, returnDocument: 'before' },
+        );
 
-    if (!booking) {
-        const existing = await Booking.findById(bookingId);
-        if (!existing) {
-            throw new ApiError(StatusCodes.NOT_FOUND, 'Booking not found.');
+        if (!booking) {
+            await session.abortTransaction();
+            const existing = await Booking.findById(bookingId);
+            if (!existing) {
+                throw new ApiError(StatusCodes.NOT_FOUND, 'Booking not found.');
+            }
+            return { booking: existing, seatsReleased: false };
         }
-        // If already EXPIRED, PAYMENT_FAILED, or another state, do not release seats again (idempotent)
-        return { booking: existing, seatsReleased: false };
-    }
 
-    // Release reservedSeats for all selected sessions
-    if (booking.selectedSessions && booking.selectedSessions.length > 0 && booking.ticketCount > 0) {
         const sessionIds = getBookingSeatSessionIds(booking).filter((id) => mongoose.Types.ObjectId.isValid(id));
-        if (sessionIds.length > 0) {
-            await Session.updateMany({ _id: { $in: sessionIds } }, { $inc: { reservedSeats: -booking.ticketCount } });
+        if (sessionIds.length > 0 && booking.ticketCount > 0) {
+            await Session.updateMany({ _id: { $in: sessionIds } }, { $inc: { reservedSeats: -booking.ticketCount } }, { session });
         }
-    }
 
-    const updatedBooking = await Booking.findById(bookingId);
-    return { booking: updatedBooking, seatsReleased: true };
+        await session.commitTransaction();
+        return { booking: await Booking.findById(bookingId), seatsReleased: true };
+    } catch (error) {
+        if (session.inTransaction()) await session.abortTransaction();
+        throw error;
+    } finally {
+        await session.endSession();
+    }
 };
 
 export const processExpiredBookings = async () => {
@@ -315,15 +311,41 @@ export const processExpiredBookings = async () => {
 };
 
 export const startExpiryWorker = (intervalMs = 30000) => {
-    const interval = setInterval(async () => {
+    let isRunning = false;
+    const run = async () => {
+        if (isRunning) return;
+        isRunning = true;
         try {
             await processExpiredBookings();
         } catch (err) {
             console.error('Expiry worker run error:', err.message);
+        } finally {
+            isRunning = false;
         }
-    }, intervalMs);
+    };
+
+    void run();
+    const interval = setInterval(run, intervalMs);
 
     return () => clearInterval(interval);
+};
+
+export const removeBookingExpiryTtlIndex = async () => {
+    let indexes;
+    try {
+        indexes = await Booking.collection.indexes();
+    } catch (error) {
+        if (error.code === 26 || error.codeName === 'NamespaceNotFound') return;
+        throw error;
+    }
+    const ttlIndexes = indexes.filter(
+        (index) => index.expireAfterSeconds !== undefined && index.key?.reservationExpiresAt === 1 && Object.keys(index.key).length === 1,
+    );
+
+    for (const index of ttlIndexes) {
+        await Booking.collection.dropIndex(index.name);
+        console.log(`Removed booking TTL index: ${index.name}`);
+    }
 };
 
 export const getBookingById = async (bookingId) => {

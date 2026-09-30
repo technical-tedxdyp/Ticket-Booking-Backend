@@ -89,13 +89,14 @@ app.use((req, res) => {
     return res.status(StatusCodes.NOT_FOUND).json(new ApiResponse(StatusCodes.NOT_FOUND, 'Route not found'));
 });
 
-import { startExpiryWorker } from './services/booking.service.js';
+import { removeBookingExpiryTtlIndex, startExpiryWorker } from './services/booking.service.js';
 
 // Start server
 const startServer = async () => {
     try {
         validateEnv();
         await connectDB();
+        await removeBookingExpiryTtlIndex();
 
         // Start background reservation expiry processor
         const stopExpiryWorker = startExpiryWorker(30000);
