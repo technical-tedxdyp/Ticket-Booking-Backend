@@ -30,6 +30,7 @@ export const createBookingOrder = asyncHandler(async (req, res) => {
     // Razorpay
     const razorpayOrder = await createOrder(totalAmount, `booking_${booking._id}`);
     booking.razorpayOrderId = razorpayOrder.id;
+    booking.paymentReconcileAfter = new Date(Date.now() + 60 * 1000);
     await booking.save();
 
     return res.status(StatusCodes.CREATED).json(
