@@ -1,6 +1,21 @@
 import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
+const emailProvider = (process.env.EMAIL_PROVIDER || 'resend').toLowerCase();
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const mailtrapPort = Number(process.env.MAILTRAP_PORT || 587);
+const mailtrapTransport =
+    emailProvider === 'mailtrap'
+        ? nodemailer.createTransport({
+              host: process.env.MAILTRAP_HOST || 'live.smtp.mailtrap.io',
+              port: mailtrapPort,
+              secure: mailtrapPort === 465,
+              auth: {
+                  user: process.env.MAILTRAP_USER,
+                  pass: process.env.MAILTRAP_PASSWORD,
+              },
+          })
+        : null;
 
 export const EVENT_DETAILS = {
     eventName: 'TEDxDYP Akurdi 2026',
@@ -169,17 +184,30 @@ export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, tota
 </body>
 </html>`;
 
-    const { data, error } = await resend.emails.send({
+    const message = {
         from: process.env.EMAIL_FROM || 'TEDx Events <tickets@resend.dev>',
-        to: [email],
         subject: `🎉 Ticket Confirmed - ${eventDetails.eventName}`,
         html: htmlContent,
         attachments,
-    });
+    };
 
-    if (error) {
-        throw new Error(error.message);
+    if (emailProvider === 'resend') {
+        if (!resend) {
+            throw new Error('RESEND_API_KEY is not configured.');
+        }
+
+        const { data, error } = await resend.emails.send({ ...message, to: [email] });
+        if (error) throw new Error(error.message);
+        return data;
     }
 
-    return data;
+    if (emailProvider === 'mailtrap') {
+        if (!process.env.MAILTRAP_USER || !process.env.MAILTRAP_PASSWORD) {
+            throw new Error('MAILTRAP_USER and MAILTRAP_PASSWORD are required.');
+        }
+
+        return mailtrapTransport.sendMail({ ...message, to: email });
+    }
+
+    throw new Error(`Unsupported EMAIL_PROVIDER: ${emailProvider}`);
 };
