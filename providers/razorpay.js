@@ -117,3 +117,15 @@ export const fetchOrder = async (orderId) => {
         throw new ApiError(404, 'Order not found.');
     }
 };
+
+export const fetchOrderPayments = async (orderId) => {
+    if (!isRazorpayEnabled() || !razorpay) {
+        throw new ApiError(503, 'Razorpay payments are temporarily disabled. Set IS_RAZOR_PAY_ENABLE=true and add valid keys to enable them again.');
+    }
+
+    try {
+        return await razorpay.orders.fetchPayments(orderId);
+    } catch (error) {
+        throw new ApiError(502, 'Unable to fetch Razorpay order payments.');
+    }
+};

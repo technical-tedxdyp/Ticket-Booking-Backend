@@ -15,7 +15,7 @@ import adminRoutes from './routes/admin.route.js';
 import ticketRoutes from './routes/ticket.route.js';
 import { createRateLimiter } from './providers/redis.js';
 import errorHandler from './middlewares/error.middleware.js';
-import { startTicketRetryWorker } from './controllers/payment.controller.js';
+import { startPaymentReconciliationWorker, startTicketRetryWorker } from './controllers/payment.controller.js';
 
 const app = express();
 
@@ -100,6 +100,7 @@ const startServer = async () => {
         // Start background reservation expiry processor
         const stopExpiryWorker = startExpiryWorker(30000);
         const stopTicketRetryWorker = startTicketRetryWorker(30000);
+        const stopPaymentReconciliationWorker = startPaymentReconciliationWorker(30000);
 
         const PORT = process.env.PORT || 8080;
         const server = app.listen(PORT, () => {
@@ -110,6 +111,7 @@ const startServer = async () => {
             console.log('Shutting down server...');
             stopExpiryWorker();
             stopTicketRetryWorker();
+            stopPaymentReconciliationWorker();
             await mongoose.connection.close();
             server.close(() => {
                 process.exit(0);

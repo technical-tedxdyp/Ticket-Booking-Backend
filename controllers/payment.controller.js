@@ -9,7 +9,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { generateTicket } from '../services/ticket.service.js';
 import { sendTicketEmail } from '../services/resend.service.js';
 import { uploadTicketPDF } from '../services/cloudinary.service.js';
-import { verifyPaymentSignature, verifyWebhookSignature } from '../providers/razorpay.js';
+import { fetchOrderPayments, verifyPaymentSignature, verifyWebhookSignature } from '../providers/razorpay.js';
 import logger from '../utils/logger.js';
 import { getBookingSeatSessionIds } from '../services/session-capacity.service.js';
 
@@ -130,6 +130,70 @@ export const startTicketRetryWorker = (intervalMs = 30000) => {
             }
         } catch (error) {
             logger.error('Ticket retry worker failed:', error);
+        }
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+};
+
+export const startPaymentReconciliationWorker = (intervalMs = 30000) => {
+    let isRunning = false;
+
+    const interval = setInterval(async () => {
+        if (isRunning) return;
+        isRunning = true;
+
+        try {
+            const now = new Date();
+            const pendingBookings = await Booking.find({
+                bookingStatus: BOOKING_STATUS.PENDING,
+                razorpayOrderId: { $exists: true, $ne: null },
+                reservationExpiresAt: { $gt: now },
+                $or: [{ paymentReconcileAfter: { $exists: false } }, { paymentReconcileAfter: null }, { paymentReconcileAfter: { $lte: now } }],
+            })
+                .select('_id')
+                .limit(50)
+                .lean();
+
+            for (const { _id: bookingId } of pendingBookings) {
+                const checkStartedAt = new Date();
+                const booking = await Booking.findOneAndUpdate(
+                    {
+                        _id: bookingId,
+                        bookingStatus: BOOKING_STATUS.PENDING,
+                        $or: [
+                            { paymentReconcileAfter: { $exists: false } },
+                            { paymentReconcileAfter: null },
+                            { paymentReconcileAfter: { $lte: checkStartedAt } },
+                        ],
+                    },
+                    { $set: { paymentReconcileAfter: new Date(checkStartedAt.getTime() + 60 * 1000) } },
+                    { returnDocument: 'after' },
+                );
+
+                if (!booking) continue;
+
+                try {
+                    const { items = [] } = await fetchOrderPayments(booking.razorpayOrderId);
+                    const capturedPayment = items.find(
+                        (payment) =>
+                            payment.status === 'captured' &&
+                            payment.order_id === booking.razorpayOrderId &&
+                            payment.currency === 'INR' &&
+                            payment.amount === Math.round(booking.totalAmount * 100),
+                    );
+
+                    if (capturedPayment) {
+                        await handlePaymentCaptured({ payment: { entity: capturedPayment } });
+                    }
+                } catch (error) {
+                    logger.error(`Payment reconciliation failed for booking: ${booking._id}`, error.message);
+                }
+            }
+        } catch (error) {
+            logger.error('Payment reconciliation worker failed:', error);
+        } finally {
+            isRunning = false;
         }
     }, intervalMs);
 
@@ -295,6 +359,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
                         bookingStatus: BOOKING_STATUS.PAYMENT_SUCCESS,
                         razorpayPaymentId: razorpayPaymentId || booking.razorpayPaymentId,
                         paymentVerifiedAt: new Date(),
+                        $unset: { paymentReconcileAfter: 1 },
                     },
                     { session, returnDocument: 'after' },
                 );
@@ -534,6 +599,7 @@ const handlePaymentCaptured = async (payload) => {
                     bookingStatus: BOOKING_STATUS.PAYMENT_SUCCESS,
                     razorpayPaymentId: paymentId,
                     paymentVerifiedAt: new Date(),
+                    $unset: { paymentReconcileAfter: 1 },
                 },
                 { session, returnDocument: 'after' },
             );
