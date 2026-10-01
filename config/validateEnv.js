@@ -22,6 +22,7 @@ const envSchema = z
         CLOUDINARY_API_SECRET: z.string(),
         EMAIL_PROVIDER: z.enum(['resend', 'mailtrap']).default('resend'),
         RESEND_API_KEY: z.string().optional().default(''),
+        MAILTRAP_API_TOKEN: z.string().optional(),
         MAILTRAP_HOST: z.string().optional(),
         MAILTRAP_PORT: z.coerce.number().int().positive().optional(),
         MAILTRAP_USER: z.string().optional(),
@@ -53,14 +54,12 @@ const envSchema = z
                 });
             }
 
-            for (const key of ['MAILTRAP_USER', 'MAILTRAP_PASSWORD']) {
-                if (!env[key]) {
-                    ctx.addIssue({
-                        code: z.ZodIssueCode.custom,
-                        path: [key],
-                        message: `${key} is required when EMAIL_PROVIDER is mailtrap`,
-                    });
-                }
+            if (!env.MAILTRAP_API_TOKEN && (!env.MAILTRAP_USER || !env.MAILTRAP_PASSWORD)) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['MAILTRAP_API_TOKEN'],
+                    message: 'MAILTRAP_API_TOKEN or both MAILTRAP_USER and MAILTRAP_PASSWORD are required when EMAIL_PROVIDER is mailtrap',
+                });
             }
         }
 

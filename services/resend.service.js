@@ -1,22 +1,6 @@
 import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 
-const emailProvider = (process.env.EMAIL_PROVIDER || 'resend').toLowerCase();
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const mailtrapPort = Number(process.env.MAILTRAP_PORT || 587);
-const mailtrapTransport =
-    emailProvider === 'mailtrap'
-        ? nodemailer.createTransport({
-              host: process.env.MAILTRAP_HOST || 'live.smtp.mailtrap.io',
-              port: mailtrapPort,
-              secure: mailtrapPort === 465,
-              auth: {
-                  user: process.env.MAILTRAP_USER,
-                  pass: process.env.MAILTRAP_PASSWORD,
-              },
-          })
-        : null;
-
 export const EVENT_DETAILS = {
     eventName: 'TEDxDYP Akurdi 2026',
     theme: 'Meandering in the mosaic',
@@ -40,6 +24,7 @@ const escapeHtml = (value) =>
     });
 
 export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, totalAmount, pdfUrl, pdfBuffer, eventDetails = EVENT_DETAILS }) => {
+    const emailProvider = (process.env.EMAIL_PROVIDER || 'resend').trim().toLowerCase();
     const attachments = [];
 
     if (pdfBuffer && Buffer.isBuffer(pdfBuffer)) {
@@ -188,20 +173,69 @@ export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, tota
     };
 
     if (emailProvider === 'resend') {
-        if (!resend) {
-            throw new Error('RESEND_API_KEY is not configured.');
+        if (!process.env.RESEND_API_KEY) {
+            throw new Error('EMAIL_PROVIDER is "resend", but RESEND_API_KEY is not configured. Set EMAIL_PROVIDER=mailtrap to use Mailtrap SMTP.');
         }
 
+        const resend = new Resend(process.env.RESEND_API_KEY);
         const { data, error } = await resend.emails.send({ ...message, to: [email] });
         if (error) throw new Error(error.message);
         return data;
     }
 
     if (emailProvider === 'mailtrap') {
-        if (!process.env.MAILTRAP_USER || !process.env.MAILTRAP_PASSWORD) {
-            throw new Error('MAILTRAP_USER and MAILTRAP_PASSWORD are required.');
+        if (process.env.MAILTRAP_API_TOKEN) {
+            const fromMatch = (process.env.EMAIL_FROM || '').match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
+            const fromEmail = fromMatch ? fromMatch[2].trim() : (process.env.EMAIL_FROM || '').trim();
+            const fromName = fromMatch?.[1]?.trim();
+            const apiAttachments = attachments.map((attachment) => ({
+                filename: attachment.filename,
+                content: attachment.content.toString('base64'),
+                type: 'application/pdf',
+                disposition: 'attachment',
+            }));
+
+            if (!fromEmail) throw new Error('EMAIL_FROM must contain a verified Mailtrap sender address.');
+
+            const response = await fetch('https://send.api.mailtrap.io/api/send', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${process.env.MAILTRAP_API_TOKEN}`,
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'tedx-ticket-booking-backend',
+                },
+                body: JSON.stringify({
+                    from: { email: fromEmail, ...(fromName ? { name: fromName } : {}) },
+                    to: [{ email }],
+                    subject: message.subject,
+                    html: message.html,
+                    attachments: apiAttachments,
+                }),
+                signal: AbortSignal.timeout(20000),
+            });
+
+            if (!response.ok) {
+                const responseText = await response.text();
+                throw new Error(`Mailtrap API rejected the email (HTTP ${response.status}): ${responseText.slice(0, 500)}`);
+            }
+
+            return response.json();
         }
 
+        if (!process.env.MAILTRAP_USER || !process.env.MAILTRAP_PASSWORD) {
+            throw new Error('Set MAILTRAP_API_TOKEN for HTTPS delivery, or configure both MAILTRAP_USER and MAILTRAP_PASSWORD for SMTP.');
+        }
+
+        const mailtrapPort = Number(process.env.MAILTRAP_PORT || 587);
+        const mailtrapTransport = nodemailer.createTransport({
+            host: process.env.MAILTRAP_HOST || 'live.smtp.mailtrap.io',
+            port: mailtrapPort,
+            secure: mailtrapPort === 465,
+            auth: {
+                user: process.env.MAILTRAP_USER,
+                pass: process.env.MAILTRAP_PASSWORD,
+            },
+        });
         return mailtrapTransport.sendMail({ ...message, to: email });
     }
 
