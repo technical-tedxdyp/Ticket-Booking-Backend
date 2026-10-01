@@ -8,7 +8,9 @@
         "start": "node server.js",
         "format": "prettier --write src/**/*.js",
         "seed": "node utils/seed.js",
-        "link-session-bundles": "node utils/link-session-bundles.js"
+        "link-session-bundles": "node utils/link-session-bundles.js",
+        "reconcile-reserved-seats": "node utils/reconcile-reserved-seats.js",
+        "resend-existing-ticket": "node utils/resend-existing-ticket.js"
     },
     "keywords": [],
     "author": "",

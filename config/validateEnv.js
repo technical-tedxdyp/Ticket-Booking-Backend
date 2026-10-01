@@ -20,7 +20,13 @@ const envSchema = z
         CLOUDINARY_CLOUD_NAME: z.string(),
         CLOUDINARY_API_KEY: z.string(),
         CLOUDINARY_API_SECRET: z.string(),
-        RESEND_API_KEY: z.string(),
+        EMAIL_PROVIDER: z.enum(['resend', 'mailtrap']).default('resend'),
+        RESEND_API_KEY: z.string().optional().default(''),
+        MAILTRAP_API_TOKEN: z.string().optional(),
+        MAILTRAP_HOST: z.string().optional(),
+        MAILTRAP_PORT: z.coerce.number().int().positive().optional(),
+        MAILTRAP_USER: z.string().optional(),
+        MAILTRAP_PASSWORD: z.string().optional(),
         EMAIL_FROM: z.string(),
         TWILIO_ACCOUNT_SID: z.string().optional(),
         TWILIO_AUTH_TOKEN: z.string().optional(),
@@ -31,6 +37,32 @@ const envSchema = z
         FRONTEND_URL: z.string(),
     })
     .superRefine((env, ctx) => {
+        if (env.EMAIL_PROVIDER === 'resend' && !env.RESEND_API_KEY) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['RESEND_API_KEY'],
+                message: 'RESEND_API_KEY is required when EMAIL_PROVIDER is resend',
+            });
+        }
+
+        if (env.EMAIL_PROVIDER === 'mailtrap') {
+            if (!env.EMAIL_FROM.trim()) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['EMAIL_FROM'],
+                    message: 'EMAIL_FROM must be a verified sender when EMAIL_PROVIDER is mailtrap',
+                });
+            }
+
+            if (!env.MAILTRAP_API_TOKEN && (!env.MAILTRAP_USER || !env.MAILTRAP_PASSWORD)) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['MAILTRAP_API_TOKEN'],
+                    message: 'MAILTRAP_API_TOKEN or both MAILTRAP_USER and MAILTRAP_PASSWORD are required when EMAIL_PROVIDER is mailtrap',
+                });
+            }
+        }
+
         if (env.IS_RAZOR_PAY_ENABLE && (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET)) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
