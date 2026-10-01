@@ -40,10 +40,6 @@ const escapeHtml = (value) =>
     });
 
 export const sendTicketEmail = async ({ email, name, ticketId, ticketCount, totalAmount, pdfUrl, pdfBuffer, eventDetails = EVENT_DETAILS }) => {
-    if (!resend) {
-        throw new Error('RESEND_API_KEY is not configured. Email delivery is disabled.');
-    }
-
     const attachments = [];
 
     if (pdfBuffer && Buffer.isBuffer(pdfBuffer)) {

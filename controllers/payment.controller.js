@@ -55,7 +55,7 @@ export const processBookingCompletion = async (booking) => {
     booking.ticketRetryAfter = null;
     await booking.save();
 
-    // 3. Send Ticket Email via Resend with PDF attachment & event details
+    // 3. Send ticket email with PDF attachment & event details
     try {
         await sendTicketEmail({
             email: booking.email,
@@ -68,7 +68,7 @@ export const processBookingCompletion = async (booking) => {
         });
         logger.info(`Ticket email sent for booking: ${booking._id}`);
     } catch (emailErr) {
-        logger.error('Failed to send ticket email via Resend:', emailErr.message);
+        logger.error('Failed to send ticket email:', emailErr.message);
     }
 
     return booking;
