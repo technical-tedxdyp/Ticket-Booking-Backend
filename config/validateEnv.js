@@ -33,7 +33,8 @@ const envSchema = z
         TWILIO_WHATSAPP_FROM: z.string().optional(),
         UPSTASH_REDIS_REST_URL: z.string(),
         UPSTASH_REDIS_REST_TOKEN: z.string(),
-        ADMIN_SECRET_KEY: z.string(),
+        ADMIN_SECRET_KEY: z.string().min(32),
+        SCANNER_TOKEN_SECRET: z.string().min(32),
         FRONTEND_URL: z.string(),
     })
     .superRefine((env, ctx) => {

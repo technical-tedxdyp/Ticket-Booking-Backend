@@ -12,7 +12,13 @@ export const ENTRY_ACTION = {
     RE_ENTRY: 'RE_ENTRY',
 };
 
+export const SCAN_OUTCOME = {
+    VERIFIED: 'VERIFIED',
+    DENIED: 'DENIED',
+    DUPLICATE: 'DUPLICATE',
+};
+
 export const MAX_TICKETS_PER_USER = 5;
-export const TOTAL_EVENT_CAPACITY = 350;
+export const TOTAL_EVENT_CAPACITY = 403;
 
 export const RESERVATION_TIME = 10 * 60 * 1000; // 10 minutes

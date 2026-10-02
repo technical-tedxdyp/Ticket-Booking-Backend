@@ -6,6 +6,8 @@
     "scripts": {
         "dev": "nodemon server.js",
         "start": "node server.js",
+        "test": "node --test tests/*.test.js",
+        "test:scanner-integration": "node --test tests/scanner-routes.integration.test.js",
         "format": "prettier --write src/**/*.js",
         "seed": "node utils/seed.js",
         "link-session-bundles": "node utils/link-session-bundles.js",

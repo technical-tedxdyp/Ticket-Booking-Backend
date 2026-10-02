@@ -22,6 +22,7 @@ const bookingSchema = new mongoose.Schema(
         selectedSessions: [
             {
                 type: String,
+                ref: 'Session',
                 required: true,
                 trim: true,
             },

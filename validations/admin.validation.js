@@ -17,6 +17,11 @@ const verifyTicketSchema = z
         ticketId: z.string().optional(),
         bookingId: z.string().optional(),
         qrPayload: z.string().optional(),
+        sessionId: z
+            .string()
+            .regex(/^[a-f\d]{24}$/i)
+            .optional(),
+        scannedBy: z.string().trim().min(1).max(100).optional().default('Admin Scanner'),
     })
     .refine((data) => data.ticketId || data.bookingId || data.qrPayload, {
         message: 'Ticket ID, Booking ID, or QR payload is required for verification.',
@@ -27,7 +32,10 @@ const checkInTicketSchema = z
         ticketId: z.string().optional(),
         bookingId: z.string().optional(),
         qrPayload: z.string().optional(),
-        sessionId: z.string().optional(),
+        sessionId: z
+            .string()
+            .regex(/^[a-f\d]{24}$/i)
+            .optional(),
         scannedBy: z.string().optional().default('Admin Scanner'),
         remarks: z.string().optional(),
     })

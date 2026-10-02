@@ -16,6 +16,7 @@ const entryLogSchema = new mongoose.Schema(
 
         session: {
             type: String,
+            ref: 'Session',
             required: true,
         },
 
@@ -28,6 +29,17 @@ const entryLogSchema = new mongoose.Schema(
         scannedBy: {
             type: String,
             required: true,
+        },
+
+        operator: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'ScannerOperator',
+            default: null,
+        },
+
+        deviceId: {
+            type: String,
+            default: null,
         },
 
         scannedAt: {
@@ -44,6 +56,8 @@ const entryLogSchema = new mongoose.Schema(
         timestamps: true,
     },
 );
+
+entryLogSchema.index({ booking: 1, session: 1, action: 1 }, { unique: true, partialFilterExpression: { action: ENTRY_ACTION.ENTRY } });
 
 const EntryLog = mongoose.models.EntryLog || mongoose.model('EntryLog', entryLogSchema);
 
