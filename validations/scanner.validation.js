@@ -2,44 +2,9 @@ import { z } from 'zod';
 import ApiError from '../utils/ApiError.js';
 import { StatusCodes } from 'http-status-codes';
 
-const loginSchema = z.object({
-    username: z.string().trim().min(3).max(40),
-    password: z.string().min(1).max(256),
-    deviceId: z.string().trim().min(8).max(128),
-    deviceSecret: z.string().min(1).max(256),
+const scannerAccessCodeSchema = z.object({
+    accessCode: z.string().min(1).max(256),
 });
-
-const createOperatorSchema = z.object({
-    username: z
-        .string()
-        .trim()
-        .toLowerCase()
-        .min(3)
-        .max(40)
-        .regex(/^[a-z0-9._-]+$/),
-    password: z.string().min(12).max(256),
-    role: z.enum(['SCANNER', 'SUPERVISOR']).optional().default('SCANNER'),
-});
-
-const updateOperatorSchema = z
-    .object({
-        password: z.string().min(12).max(256).optional(),
-        isActive: z.boolean().optional(),
-        role: z.enum(['SCANNER', 'SUPERVISOR']).optional(),
-    })
-    .refine((data) => Object.keys(data).length > 0, { message: 'Provide a password, active status, or role to update.' });
-
-const createDeviceSchema = z.object({
-    deviceId: z.string().trim().min(8).max(128),
-    name: z.string().trim().min(1).max(80),
-});
-
-const updateDeviceSchema = z
-    .object({
-        isActive: z.boolean().optional(),
-        rotateSecret: z.boolean().optional(),
-    })
-    .refine((data) => Object.keys(data).length > 0, { message: 'Provide active status or rotateSecret.' });
 
 const scanReportQueryBaseSchema = z.object({
     page: z.coerce.number().int().min(1).optional().default(1),
@@ -81,11 +46,7 @@ const validate = (schema) => (req, res, next) => {
     return next();
 };
 
-export const validateScannerLogin = validate(loginSchema);
-export const validateCreateScannerOperator = validate(createOperatorSchema);
-export const validateUpdateScannerOperator = validate(updateOperatorSchema);
-export const validateCreateScannerDevice = validate(createDeviceSchema);
-export const validateUpdateScannerDevice = validate(updateDeviceSchema);
+export const validateScannerAccessCode = validate(scannerAccessCodeSchema);
 
 const validateQuery = (schema) => (req, res, next) => {
     const result = schema.safeParse(req.query);

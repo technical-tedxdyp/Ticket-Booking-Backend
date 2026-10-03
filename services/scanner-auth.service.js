@@ -1,8 +1,5 @@
-import { promisify } from 'node:util';
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
-const scrypt = promisify(scryptCallback);
-const PASSWORD_KEY_LENGTH = 64;
 const TOKEN_LIFETIME_SECONDS = 12 * 60 * 60;
 
 const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -17,42 +14,26 @@ const getTokenSecret = () => {
     return secret;
 };
 
-export const hashScannerPassword = async (password) => {
-    const salt = randomBytes(16);
-    const derivedKey = await scrypt(password, salt, PASSWORD_KEY_LENGTH, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
-    return `scrypt$16384$8$1$${salt.toString('base64url')}$${derivedKey.toString('base64url')}`;
-};
+export const fingerprintScannerAccessCode = (accessCode) =>
+    createHmac('sha256', getTokenSecret()).update(`scanner-access:${accessCode}`).digest('base64url');
 
-export const DUMMY_PASSWORD_HASH = await hashScannerPassword(randomBytes(24).toString('base64url'));
-
-export const verifyScannerPassword = async (password, passwordHash) => {
-    const [algorithm, cost, blockSize, parallelization, saltText, keyText] = String(passwordHash || '').split('$');
-    if (algorithm !== 'scrypt' || !saltText || !keyText) return false;
-
-    try {
-        const expected = Buffer.from(keyText, 'base64url');
-        const actual = await scrypt(password, Buffer.from(saltText, 'base64url'), expected.length, {
-            N: Number(cost),
-            r: Number(blockSize),
-            p: Number(parallelization),
-            maxmem: 64 * 1024 * 1024,
-        });
-        return expected.length === actual.length && timingSafeEqual(expected, actual);
-    } catch {
-        return false;
+export const createSharedScannerToken = () => {
+    const accessCode = process.env.SCANNER_ACCESS_CODE;
+    if (!accessCode || Buffer.byteLength(accessCode) < 8) {
+        const error = new Error('Scanner access is not configured. Set SCANNER_ACCESS_CODE to at least 8 characters.');
+        error.statusCode = 503;
+        throw error;
     }
-};
 
-export const createScannerToken = ({ operatorId, username, role, tokenVersion, deviceId, deviceVersion }) => {
     const now = Math.floor(Date.now() / 1000);
     const header = encode({ alg: 'HS256', typ: 'JWT' });
     const payload = encode({
-        sub: String(operatorId),
-        username,
-        role,
-        ver: tokenVersion,
-        deviceId,
-        deviceVer: deviceVersion,
+        sub: 'shared-event-scanner',
+        username: 'Event Scanner',
+        role: 'SCANNER',
+        deviceId: 'event-scanner',
+        authMode: 'shared',
+        accessCodeFingerprint: fingerprintScannerAccessCode(accessCode),
         iat: now,
         exp: now + TOKEN_LIFETIME_SECONDS,
     });
@@ -75,16 +56,18 @@ export const verifyScannerToken = (token) => {
         if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) return null;
 
         const payload = JSON.parse(Buffer.from(payloadText, 'base64url').toString('utf8'));
+        const now = Math.floor(Date.now() / 1000);
         if (
-            !payload.sub ||
-            !payload.username ||
-            !payload.deviceId ||
-            !Number.isInteger(payload.ver) ||
-            !Number.isInteger(payload.deviceVer) ||
+            payload.sub !== 'shared-event-scanner' ||
+            payload.username !== 'Event Scanner' ||
+            payload.role !== 'SCANNER' ||
+            payload.deviceId !== 'event-scanner' ||
+            payload.authMode !== 'shared' ||
+            typeof payload.accessCodeFingerprint !== 'string' ||
             !Number.isInteger(payload.iat) ||
             !Number.isInteger(payload.exp) ||
-            payload.iat > Math.floor(Date.now() / 1000) ||
-            payload.exp <= Math.floor(Date.now() / 1000)
+            payload.iat > now ||
+            payload.exp <= now
         ) {
             return null;
         }

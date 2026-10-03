@@ -10,19 +10,17 @@ import mongoose from 'mongoose';
 
 process.env.ADMIN_SECRET_KEY = 'admin-test-secret-that-is-at-least-thirty-two-bytes';
 process.env.SCANNER_TOKEN_SECRET = 'scanner-test-secret-that-is-at-least-thirty-two-bytes';
+process.env.SCANNER_ACCESS_CODE = 'event-access-code-test';
 process.env.NODE_ENV = 'test';
 
-const [{ default: adminRoutes }, { default: errorHandler }, { hashScannerPassword }] = await Promise.all([
+const [{ default: adminRoutes }, { default: errorHandler }] = await Promise.all([
     import('../routes/admin.route.js'),
     import('../middlewares/error.middleware.js'),
-    import('../services/scanner-auth.service.js'),
 ]);
 const { default: Booking } = await import('../models/booking.model.js');
 const { default: EntryLog } = await import('../models/entryLog.model.js');
 const { default: Event } = await import('../models/event.model.js');
 const { default: ScanAttempt } = await import('../models/scanAttempt.model.js');
-const { default: ScannerDevice } = await import('../models/scannerDevice.model.js');
-const { default: ScannerOperator } = await import('../models/scannerOperator.model.js');
 const { default: Session } = await import('../models/session.model.js');
 const mongodAvailable = spawnSync('mongod', ['--version'], { stdio: 'ignore' }).status === 0;
 
@@ -65,7 +63,7 @@ const postJson = (baseUrl, route, body, token) =>
     });
 
 test(
-    'scanner routes authenticate, enforce session admission, audit, report, and revoke credentials',
+    'scanner routes authenticate with the shared access code, enforce session admission, and audit reports',
     { skip: !mongodAvailable && 'mongod is required for the isolated scanner integration test' },
     async () => {
         const directory = await mkdtemp(path.join(tmpdir(), 'tedx-scanner-integration-'));
@@ -112,8 +110,6 @@ test(
                 EntryLog.createIndexes(),
                 Event.createIndexes(),
                 ScanAttempt.createIndexes(),
-                ScannerDevice.createIndexes(),
-                ScannerOperator.createIndexes(),
                 Session.createIndexes(),
             ]);
 
@@ -125,37 +121,29 @@ test(
             await new Promise((resolve) => httpServer.once('listening', resolve));
             const baseUrl = `http://127.0.0.1:${httpServer.address().port}`;
 
-            const deviceResponse = await fetch(`${baseUrl}/api/admin/scanner-devices`, {
+            const invalidSharedLoginResponse = await postJson(baseUrl, '/api/admin/scanner/access', { accessCode: 'incorrect-event-code' });
+            assert.equal(invalidSharedLoginResponse.status, 401);
+
+            const legacyLoginResponse = await fetch(`${baseUrl}/api/admin/scanner/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-admin-key': process.env.ADMIN_SECRET_KEY },
-                body: JSON.stringify({ deviceId: 'entrance-device-01', name: 'Entrance A' }),
+                body: JSON.stringify({}),
             });
-            assert.equal(deviceResponse.status, 201);
-            const {
-                data: { deviceSecret },
-            } = await deviceResponse.json();
+            assert.equal(legacyLoginResponse.status, 404);
+            for (const path of ['/api/admin/scanner-devices', '/api/admin/scanner-operators']) {
+                const legacyManagementResponse = await fetch(`${baseUrl}${path}`, {
+                    headers: { 'x-admin-key': process.env.ADMIN_SECRET_KEY },
+                });
+                assert.equal(legacyManagementResponse.status, 404);
+            }
 
-            const operatorResponse = await fetch(`${baseUrl}/api/admin/scanner-operators`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-admin-key': process.env.ADMIN_SECRET_KEY },
-                body: JSON.stringify({ username: 'operator.one', password: 'operator-password-123', role: 'SCANNER' }),
-            });
-            assert.equal(operatorResponse.status, 201);
+            const sharedLoginResponse = await postJson(baseUrl, '/api/admin/scanner/access', { accessCode: process.env.SCANNER_ACCESS_CODE });
+            assert.equal(sharedLoginResponse.status, 200);
             const {
-                data: { operator },
-            } = await operatorResponse.json();
-            assert.equal('passwordHash' in operator, false);
-
-            const loginResponse = await postJson(baseUrl, '/api/admin/scanner/login', {
-                username: 'operator.one',
-                password: 'operator-password-123',
-                deviceId: 'entrance-device-01',
-                deviceSecret,
-            });
-            assert.equal(loginResponse.status, 200);
-            const {
-                data: { token },
-            } = await loginResponse.json();
+                data: { token: sharedToken, scanner },
+            } = await sharedLoginResponse.json();
+            assert.equal(scanner, 'Event Scanner');
+            const token = sharedToken;
 
             const unauthorizedResponse = await postJson(baseUrl, '/api/admin/scanner/ticket/verify', { ticketId: 'TEST-FULL-DAY' });
             assert.equal(unauthorizedResponse.status, 401);
@@ -227,6 +215,15 @@ test(
                 pdfUrl: 'https://example.com/morning.pdf',
             });
 
+            const sharedVerify = await postJson(
+                baseUrl,
+                '/api/admin/scanner/ticket/verify',
+                { ticketId: 'TEST-MORNING', sessionId: String(morning._id) },
+                sharedToken,
+            );
+            assert.equal(sharedVerify.status, 200);
+            assert.equal((await sharedVerify.json()).data.outcome, 'VERIFIED');
+
             const verifyMorning = await postJson(
                 baseUrl,
                 '/api/admin/scanner/ticket/verify',
@@ -259,8 +256,8 @@ test(
             assert.equal(morningCheckIn.status, 200);
             const checkedInMorning = await morningCheckIn.json();
             assert.equal(checkedInMorning.data.booking.ticketCount, 2);
-            assert.equal(String(checkedInMorning.data.entryLog.operator), String(operator.id));
-            assert.equal(checkedInMorning.data.entryLog.deviceId, 'entrance-device-01');
+            assert.equal(checkedInMorning.data.entryLog.operator, null);
+            assert.equal(checkedInMorning.data.entryLog.deviceId, 'event-scanner');
 
             const duplicateVerify = await postJson(
                 baseUrl,
@@ -290,7 +287,7 @@ test(
             });
             assert.equal(analyticsResponse.status, 200);
             const analytics = await analyticsResponse.json();
-            assert.equal(analytics.data.scans.verified, 1);
+            assert.equal(analytics.data.scans.verified, 2);
             assert.equal(analytics.data.scans.denied, 2);
             assert.equal(analytics.data.scans.duplicate, 3);
             assert.equal(analytics.data.admissions.total, 2);
@@ -304,19 +301,17 @@ test(
             const deniedAttempts = await deniedAttemptsResponse.json();
             assert.equal(deniedAttempts.data.pagination.total, 2);
 
-            const attemptsWithActor = await ScanAttempt.find({ operator: operator.id, deviceId: 'entrance-device-01' });
-            assert.equal(attemptsWithActor.length, 6);
+            const sharedActorAttempts = await ScanAttempt.find({ scannedBy: 'Event Scanner', deviceId: 'event-scanner' });
+            assert.equal(sharedActorAttempts.length, analytics.data.scans.verified + analytics.data.scans.denied + analytics.data.scans.duplicate);
+            assert.ok(sharedActorAttempts.every((attempt) => attempt.operator === null));
 
-            const disableOperator = await fetch(`${baseUrl}/api/admin/scanner-operators/${operator.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'x-admin-key': process.env.ADMIN_SECRET_KEY },
-                body: JSON.stringify({ isActive: false }),
+            const logoutResponse = await postJson(baseUrl, '/api/admin/scanner/logout', {}, token);
+            assert.equal(logoutResponse.status, 200);
+            process.env.SCANNER_ACCESS_CODE = 'rotated-event-access-code';
+            const sharedTokenRevokedResponse = await fetch(`${baseUrl}/api/admin/scanner/analytics/scans`, {
+                headers: { Authorization: `Bearer ${sharedToken}` },
             });
-            assert.equal(disableOperator.status, 200);
-            const revokedTokenResponse = await fetch(`${baseUrl}/api/admin/scanner/analytics/scans`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            assert.equal(revokedTokenResponse.status, 401);
+            assert.equal(sharedTokenRevokedResponse.status, 401);
         } finally {
             if (httpServer) await new Promise((resolve) => httpServer.close(resolve));
             await mongoose.disconnect().catch(() => {});

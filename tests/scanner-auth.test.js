@@ -2,57 +2,33 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.SCANNER_TOKEN_SECRET = 'scanner-token-secret-for-tests-with-more-than-32-bytes';
+process.env.SCANNER_ACCESS_CODE = 'event-access-code-test';
 
-const { createScannerToken, hashScannerPassword, verifyScannerPassword, verifyScannerToken } = await import('../services/scanner-auth.service.js');
+const { createSharedScannerToken, fingerprintScannerAccessCode, verifyScannerToken } = await import('../services/scanner-auth.service.js');
 const { default: adminAuth } = await import('../middlewares/adminAuth.js');
-const { default: ScannerDevice } = await import('../models/scannerDevice.model.js');
 const { default: ScannerOperator } = await import('../models/scannerOperator.model.js');
 
-test('scanner password hashes verify only the original password', async () => {
-    const passwordHash = await hashScannerPassword('correct horse battery staple');
-
-    assert.equal(await verifyScannerPassword('correct horse battery staple', passwordHash), true);
-    assert.equal(await verifyScannerPassword('incorrect password', passwordHash), false);
-    assert.equal(await verifyScannerPassword('anything', 'malformed-hash'), false);
-});
-
-test('scanner tokens are signed, include device identity, and reject tampering', () => {
-    const token = createScannerToken({
-        operatorId: '66a123456789012345678901',
-        username: 'scanner.one',
-        role: 'SCANNER',
-        tokenVersion: 2,
-        deviceId: 'entrance-device-01',
-        deviceVersion: 3,
-    }).token;
+test('shared scanner tokens are signed, identify the event scanner, and reject tampering', () => {
+    const token = createSharedScannerToken().token;
     const [header, payload, signature] = token.split('.');
     const tamperedPayload = Buffer.from(payload, 'base64url');
     tamperedPayload[0] ^= 1;
 
-    assert.equal(verifyScannerToken(token)?.username, 'scanner.one');
-    assert.equal(verifyScannerToken(token)?.deviceId, 'entrance-device-01');
+    assert.equal(verifyScannerToken(token)?.username, 'Event Scanner');
+    assert.equal(verifyScannerToken(token)?.deviceId, 'event-scanner');
     assert.equal(verifyScannerToken(`${header}.${tamperedPayload.toString('base64url')}.${signature}`), null);
     assert.equal(verifyScannerToken('not-a-token'), null);
+    assert.equal(verifyScannerToken(token)?.authMode, 'shared');
+    assert.equal(verifyScannerToken(token)?.accessCodeFingerprint, fingerprintScannerAccessCode(process.env.SCANNER_ACCESS_CODE));
+    assert.notEqual(verifyScannerToken(token)?.accessCodeFingerprint, fingerprintScannerAccessCode('another-code'));
+    assert.equal(createSharedScannerToken().expiresIn, 12 * 60 * 60);
 });
 
-test('scanner token creation fails closed when the signing secret is too short', () => {
+test('shared scanner token creation fails closed when the signing secret is too short', () => {
     const configuredSecret = process.env.SCANNER_TOKEN_SECRET;
     process.env.SCANNER_TOKEN_SECRET = 'short';
     try {
-        assert.throws(
-            () =>
-                createScannerToken({
-                    operatorId: 'operator',
-                    username: 'scanner',
-                    role: 'SCANNER',
-                    tokenVersion: 0,
-                    deviceId: 'device-id',
-                    deviceVersion: 0,
-                }),
-            {
-                statusCode: 503,
-            },
-        );
+        assert.throws(() => createSharedScannerToken(), { statusCode: 503 });
     } finally {
         process.env.SCANNER_TOKEN_SECRET = configuredSecret;
     }
@@ -77,9 +53,8 @@ test('admin authentication requires the configured secret in a header', () => {
     }
 });
 
-test('scanner credential models hide hashes and expose token revocation versions', () => {
-    assert.equal(ScannerOperator.schema.path('passwordHash').options.select, false);
-    assert.equal(ScannerDevice.schema.path('secretHash').options.select, false);
-    assert.equal(ScannerOperator.schema.path('tokenVersion').defaultValue, 0);
-    assert.equal(ScannerDevice.schema.path('tokenVersion').defaultValue, 0);
+test('scanner operator model retains fields needed to display historical audit records', () => {
+    assert.ok(ScannerOperator.schema.path('username'));
+    assert.ok(ScannerOperator.schema.path('role'));
+    assert.equal(ScannerOperator.schema.path('passwordHash'), undefined);
 });

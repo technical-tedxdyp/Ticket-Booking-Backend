@@ -35,6 +35,7 @@ const envSchema = z
         UPSTASH_REDIS_REST_TOKEN: z.string(),
         ADMIN_SECRET_KEY: z.string().min(32),
         SCANNER_TOKEN_SECRET: z.string().min(32),
+        SCANNER_ACCESS_CODE: z.string().min(8),
         FRONTEND_URL: z.string(),
     })
     .superRefine((env, ctx) => {

@@ -13,22 +13,12 @@ import {
     getScannerAnalytics,
 } from '../controllers/admin.controller.js';
 import {
-    createScannerDevice,
-    createScannerOperator,
-    listScannerDevices,
-    listScannerOperators,
-    loginScannerOperator,
-    logoutScannerOperator,
-    updateScannerDevice,
-    updateScannerOperator,
+    loginWithScannerAccessCode,
+    logoutScanner,
 } from '../controllers/scanner-auth.controller.js';
 import { validateAdminLogin, validateTicketVerify, validateTicketCheckIn } from '../validations/admin.validation.js';
 import {
-    validateCreateScannerDevice,
-    validateCreateScannerOperator,
-    validateScannerLogin,
-    validateUpdateScannerDevice,
-    validateUpdateScannerOperator,
+    validateScannerAccessCode,
     validateScanReportQuery,
     validateScannerAnalyticsQuery,
 } from '../validations/scanner.validation.js';
@@ -37,8 +27,8 @@ const router = express.Router();
 
 // Public login route
 router.post('/login', validateAdminLogin, login);
-router.post('/scanner/login', validateScannerLogin, loginScannerOperator);
-router.post('/scanner/logout', scannerAuth, logoutScannerOperator);
+router.post('/scanner/access', validateScannerAccessCode, loginWithScannerAccessCode);
+router.post('/scanner/logout', scannerAuth, logoutScanner);
 router.post('/scanner/ticket/verify', scannerAuth, validateTicketVerify, verifyTicket);
 router.post('/scanner/ticket/check-in', scannerAuth, validateTicketCheckIn, checkInTicket);
 router.get('/scanner/scan-attempts', scannerAuth, validateScanReportQuery, getScanAttempts);
@@ -46,13 +36,6 @@ router.get('/scanner/analytics/scans', scannerAuth, validateScannerAnalyticsQuer
 
 // All routes below require admin authentication
 router.use(adminAuth);
-
-router.post('/scanner-operators', validateCreateScannerOperator, createScannerOperator);
-router.get('/scanner-operators', listScannerOperators);
-router.patch('/scanner-operators/:id', validateUpdateScannerOperator, updateScannerOperator);
-router.post('/scanner-devices', validateCreateScannerDevice, createScannerDevice);
-router.get('/scanner-devices', listScannerDevices);
-router.patch('/scanner-devices/:id', validateUpdateScannerDevice, updateScannerDevice);
 
 // Dashboard
 router.get('/dashboard', getDashboard);

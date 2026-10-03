@@ -7,6 +7,8 @@ import Booking from '../models/booking.model.js';
 import EntryLog from '../models/entryLog.model.js';
 import ScanAttempt from '../models/scanAttempt.model.js';
 import Session from '../models/session.model.js';
+// Register the historical actor model so old audit records can still populate.
+import '../models/scannerOperator.model.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { BOOKING_STATUS, ENTRY_ACTION, SCAN_OUTCOME } from '../utils/constants.js';
 import { resolveEntitledSessions, selectAdmissionSession } from '../services/ticket-admission.service.js';
@@ -22,7 +24,7 @@ const getScanActor = (req, fallbackName) =>
     req.scannerOperator
         ? {
               scannedBy: req.scannerOperator.username,
-              operator: req.scannerOperator.id,
+              operator: req.scannerOperator.id || null,
               deviceId: req.scannerOperator.deviceId,
           }
         : { scannedBy: fallbackName, operator: null, deviceId: null };
